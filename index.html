@@ -151,31 +151,51 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .card{animation:fadeIn .3s ease both;}
 
 
-/* ── LOADING SCREEN ── */
-#loading{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
-.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;} .ld-logo span{color:#00d4ff;}
-.ld-sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
-.ld-icon{font-size:52px;animation:pulse 2s ease-in-out infinite;}
-@keyframes pulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+/* ── UPLOAD SCREEN ── */
+#uploadScreen{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+.up-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;} .up-logo span{color:#00d4ff;}
+.up-sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
+.drop-zone{width:480px;border:2px dashed rgba(0,212,255,.3);border-radius:16px;padding:48px 32px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(0,212,255,.03);}
+.drop-zone:hover,.drop-zone.drag{border-color:#00d4ff;background:rgba(0,212,255,.07);}
+.drop-icon{font-size:48px;margin-bottom:12px;}
+.drop-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:6px;}
+.drop-hint{font-size:11px;color:var(--muted);line-height:1.6;}
+.drop-hint b{color:#00d4ff;}
+.btn-sel{display:inline-block;margin-top:18px;padding:10px 28px;background:#00d4ff;color:#0a0d14;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:filter .2s;}
+.btn-sel:hover{filter:brightness(1.15);}
+#fileInput{display:none;}
+#loadMsg{font-size:12px;color:#00d4ff;display:none;font-family:'Syne',sans-serif;font-weight:700;}
+.prog-bar{width:480px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none;}
+.prog-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .4s ease;}
+/* ── LOADING (processando) ── */
+#loading{position:fixed;inset:0;z-index:998;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
 .ld-msg{font-size:12px;color:#00d4ff;font-family:'Syne',sans-serif;font-weight:700;}
 .ld-bar{width:380px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
 .ld-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .5s ease;}
 #loadError{color:#ff4757;font-size:12px;display:none;max-width:420px;text-align:center;}
-#btnReload{display:none;padding:8px 24px;background:#00d4ff;color:#0a0d14;border:none;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px;}
-#btnReload:hover{filter:brightness(1.15);}
 </style>
 </head>
 <body>
 
-<!-- ══ LOADING ══ -->
-<div id="loading">
-  <div class="ld-logo">CONTROLE <span>CEMIG</span></div>
-  <div class="ld-sub">AVALICON ENGENHARIA — DASHBOARD AUTOMÁTICO</div>
-  <div class="ld-icon">📊</div>
-  <div class="ld-msg" id="loadMsg">⚙️ Conectando ao OneDrive...</div>
-  <div class="ld-bar"><div class="ld-fill" id="progFill"></div></div>
+<!-- ══ UPLOAD SCREEN ══ -->
+<div id="uploadScreen">
+  <div class="up-logo">CONTROLE <span>CEMIG</span></div>
+  <div class="up-sub">AVALICON ENGENHARIA — SELECIONE A PLANILHA PARA CARREGAR</div>
+  <div class="drop-zone" id="dropZone">
+    <div class="drop-icon">📂</div>
+    <div class="drop-title">Arraste a planilha aqui</div>
+    <div class="drop-hint">Arquivo <b>.xlsx</b> do controle CEMIG<br>ou clique para selecionar</div>
+    <div class="btn-sel" onclick="document.getElementById('fileInput').click()">Selecionar arquivo</div>
+  </div>
+  <input type="file" id="fileInput" accept=".xlsx,.xls">
+  <div id="loadMsg">⚙️ Processando...</div>
+  <div class="prog-bar" id="progBar"><div class="prog-fill" id="progFill"></div></div>
   <div id="loadError"></div>
-  <button id="btnReload" onclick="carregarPlanilha()">🔄 Tentar novamente</button>
+</div>
+<!-- ══ LOADING (processando) ══ -->
+<div id="loading" style="display:none;">
+  <div class="ld-msg" id="ldMsg">⚙️ Carregando...</div>
+  <div class="ld-bar"><div class="ld-fill" id="ldFill"></div></div>
 </div>
 
 <!-- ══ DASHBOARD ══ -->
@@ -185,7 +205,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="tb-sep"></div>
     <span style="font-size:10px;color:var(--muted)">AVALICON ENGENHARIA</span>
     <div class="tb-sep"></div>
-    <button class="tb-btn" onclick="carregarPlanilha()">🔄 Atualizar dados</button>
+    <button class="tb-btn" onclick="trocarArquivo()">📂 Trocar arquivo</button>
     <div class="tb-right" id="tbRight">—</div>
   </div>
   <div class="canvas"><div class="dash-grid" id="grid"></div></div>
@@ -794,9 +814,14 @@ function buildDashboard(rawRows, filename){
 
 
 // ══════════════════════════════════════════════════
-//  AUTO-LOAD DO ONEDRIVE
+//  UPLOAD LOCAL
 // ══════════════════════════════════════════════════
-async function carregarPlanilha() {
+function trocarArquivo() {
+  document.getElementById('dashWrapper').style.display = 'none';
+  document.getElementById('uploadScreen').style.display = 'flex';
+}
+
+function processFile(file) {
   const loading = document.getElementById('loading');
   const progFill = document.getElementById('progFill');
   const loadMsg  = document.getElementById('loadMsg');
@@ -877,7 +902,7 @@ async function carregarPlanilha() {
 }
 
 // Inicia ao carregar a página
-window.addEventListener('DOMContentLoaded', carregarPlanilha);
+// upload listeners already set above
 
 // Função de download (mantida)
 
