@@ -814,11 +814,59 @@ function buildDashboard(rawRows, filename){
 
 
 // ══════════════════════════════════════════════════
-//  UPLOAD LOCAL
+//  UPLOAD + KV STORAGE
 // ══════════════════════════════════════════════════
 function trocarArquivo() {
   document.getElementById('dashWrapper').style.display = 'none';
   document.getElementById('uploadScreen').style.display = 'flex';
+  document.getElementById('loadMsg').style.display = 'none';
+  document.getElementById('progBar').style.display = 'none';
+  document.getElementById('loadError').style.display = 'none';
+}
+
+async function carregarDoServidor() {
+  const loadMsg   = document.getElementById('loadMsg');
+  const progBar   = document.getElementById('progBar');
+  const progFill  = document.getElementById('progFill');
+  const loadError = document.getElementById('loadError');
+  const uploadScreen = document.getElementById('uploadScreen');
+
+  loadMsg.style.display = 'block';
+  loadMsg.textContent = '⚙️ Carregando dados salvos...';
+  progBar.style.display = 'block';
+  progFill.style.width = '30%';
+
+  try {
+    const res = await fetch('/api/carregar');
+    if (res.status === 404) {
+      // Nenhum dado salvo — mostra tela de upload normalmente
+      loadMsg.style.display = 'none';
+      progBar.style.display = 'none';
+      return;
+    }
+    if (!res.ok) throw new Error('Erro ao carregar dados');
+
+    progFill.style.width = '80%';
+    const data = await res.json();
+    progFill.style.width = '100%';
+
+    setTimeout(() => {
+      uploadScreen.style.display = 'none';
+      document.getElementById('dashWrapper').style.display = 'block';
+      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoAZ3);
+      // Mostra data da última atualização
+      if (data.updatedAt) {
+        const d = new Date(data.updatedAt);
+        const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+        document.getElementById('tbRight').textContent = 'Atualizado: ' + fmt;
+      }
+    }, 200);
+
+  } catch(err) {
+    loadMsg.style.display = 'none';
+    progBar.style.display = 'none';
+    console.warn('Sem dados no servidor, pedindo upload:', err.message);
+  }
 }
 
 function processFile(file) {
@@ -834,7 +882,7 @@ function processFile(file) {
   loadError.style.display = 'none';
 
   const reader = new FileReader();
-  reader.onload = function(e) {
+  reader.onload = async function(e) {
     try {
       progFill.style.width = '50%';
       const buffer = e.target.result;
@@ -875,10 +923,22 @@ function processFile(file) {
       }
 
       progFill.style.width = '100%';
+
+      // Salva no servidor para todos verem
+      loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
+      try {
+        await fetch('/api/salvar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream', 'x-filename': file.name },
+          body: new Uint8Array(buffer)
+        });
+      } catch(e) { console.warn('Não salvou no servidor:', e); }
+
       setTimeout(() => {
         document.getElementById('uploadScreen').style.display = 'none';
         document.getElementById('dashWrapper').style.display = 'block';
         buildDashboard(rows, file.name, totalMedidoAZ3);
+        document.getElementById('tbRight').textContent = 'Atualizado agora';
       }, 300);
 
     } catch(err) {
@@ -893,6 +953,9 @@ function processFile(file) {
 
 // Event listeners upload
 window.addEventListener('DOMContentLoaded', () => {
+  // Tenta carregar dados já salvos primeiro
+  carregarDoServidor();
+
   const fileInput = document.getElementById('fileInput');
   const dropZone  = document.getElementById('dropZone');
   fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
