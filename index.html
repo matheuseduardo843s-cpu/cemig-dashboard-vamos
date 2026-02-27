@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard CEMIG — Avalicon Engenharia</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+
+:root{--bg:#0a0d14;--surface:#111520;--surface2:#161c2e;--border:#1e2840;--accent:#00d4ff;--text:#e8edf5;--muted:#6b7a99;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,255,.025) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,255,.025) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;}
+
+/* ── UPLOAD SCREEN ── */
+#uploadScreen{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+.up-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;} .up-logo span{color:#00d4ff;}
+.up-sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
+.drop-zone{width:480px;border:2px dashed rgba(0,212,255,.3);border-radius:16px;padding:48px 32px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(0,212,255,.03);}
+.drop-zone:hover,.drop-zone.drag{border-color:#00d4ff;background:rgba(0,212,255,.07);}
+.drop-icon{font-size:48px;margin-bottom:12px;}
+.drop-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:6px;}
+.drop-hint{font-size:11px;color:var(--muted);line-height:1.6;}
+.drop-hint b{color:#00d4ff;}
+.btn-sel{display:inline-block;margin-top:18px;padding:10px 28px;background:#00d4ff;color:#0a0d14;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:filter .2s;}
+.btn-sel:hover{filter:brightness(1.15);}
+#fileInput{display:none;}
+.up-step{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);}
+.up-step-dot{width:20px;height:20px;border-radius:50%;background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.3);display:flex;align-items:center;justify-content:center;font-size:10px;color:#00d4ff;flex-shrink:0;}
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
+#loadMsg{font-size:12px;color:#00d4ff;display:none;font-family:'Syne',sans-serif;font-weight:700;}
+.prog-bar{width:480px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none;}
+.prog-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .4s ease;}
+
+/* ── TOOLBAR ── */
+.toolbar{position:sticky;top:0;z-index:100;background:rgba(10,13,20,.97);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;padding:9px 18px;}
+.tb-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;} .tb-logo span{color:#00d4ff;}
+.tb-sep{width:1px;height:22px;background:var(--border);}
+.tb-btn{display:flex;align-items:center;gap:5px;padding:5px 13px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s;white-space:nowrap;}
+.tb-btn:hover{border-color:#00d4ff;color:#00d4ff;background:rgba(0,212,255,.08);}
+.tb-right{margin-left:auto;font-size:10px;color:var(--muted);letter-spacing:1px;}
+
+/* ── GRID ── */
+.canvas{position:relative;z-index:1;padding:16px;}
+.dash-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;}
+.c3{grid-column:span 3;}.c4{grid-column:span 4;}.c5{grid-column:span 5;}.c6{grid-column:span 6;}.c12{grid-column:span 12;}
+
+/* ── CARD ── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;transition:border-color .2s;position:relative;}
+.card:hover{border-color:rgba(0,212,255,.22);}
+.card-inner{padding:16px;height:100%;display:flex;flex-direction:column;}
+.card-title{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:1.5px;text-transform:uppercase;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px;flex-shrink:0;}
+.card-title::before{content:'';display:block;width:5px;height:5px;border-radius:50%;background:#00d4ff;flex-shrink:0;}
+.accent-bar{position:absolute;top:0;left:0;right:0;height:2px;border-radius:11px 11px 0 0;}
+
+/* ── KPI ── */
+.kpi-lbl{font-size:9px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px;}
+.kpi-v{font-family:'Syne',sans-serif;font-weight:800;line-height:1;font-size:clamp(24px,3vw,42px);cursor:pointer;transition:filter .2s;}
+.kpi-v:hover{filter:brightness(1.25);}
+.kpi-sub{font-size:10px;color:var(--muted);margin-top:5px;}
+.kpi-note{font-size:9px;color:rgba(107,122,153,.45);margin-top:3px;font-style:italic;}
+
+/* ── STATUS PILLS ── */
+.status-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;flex:1;}
+.s-pill{display:flex;align-items:center;justify-content:space-between;border-radius:7px;padding:9px 11px;transition:filter .2s;border:1px solid transparent;}
+.s-pill:hover{filter:brightness(1.2);}
+.s-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.s-name{font-size:10px;margin-left:7px;font-weight:500;}
+.s-num{font-family:'Syne',sans-serif;font-weight:700;font-size:17px;}
+.pill-v{background:rgba(15,122,64,.18);border-color:rgba(15,122,64,.4);}
+.pill-e{background:rgba(127,255,107,.12);border-color:rgba(127,255,107,.35);}
+.pill-c{background:rgba(255,71,87,.15);border-color:rgba(255,71,87,.4);}
+.pill-a{background:rgba(0,212,255,.1);border-color:rgba(0,212,255,.3);}
+.pill-p{background:rgba(255,209,102,.12);border-color:rgba(255,209,102,.35);}
+.pill-r{background:rgba(167,139,250,.1);border-color:rgba(167,139,250,.3);}
+.pill-rv{background:rgba(107,122,153,.1);border-color:rgba(107,122,153,.25);}
+
+/* ── DETAIL PANEL ── */
+.detail-panel{display:none;margin-top:10px;border-radius:8px;padding:10px 12px;border:1px solid var(--border);background:var(--surface2);max-height:200px;overflow-y:auto;}
+
+/* ── PAY TABLE ── */
+.pay-table{width:100%;border-collapse:collapse;margin-bottom:10px;}
+.pay-table tr{border-bottom:1px solid var(--border);}
+.pay-table tr:last-child{border-bottom:none;}
+.pay-table td{padding:7px 5px;font-size:11px;}
+.pay-table td:last-child{text-align:right;font-family:'Syne',sans-serif;font-weight:600;}
+.badge{display:inline-block;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;}
+.bg{background:rgba(34,212,122,.15);color:#22d47a;}.by{background:rgba(255,209,102,.15);color:#ffd166;}
+.br{background:rgba(255,71,87,.15);color:#ff4757;}.bm{background:rgba(107,122,153,.2);color:#6b7a99;}
+.bo{background:rgba(255,107,53,.15);color:#ff6b35;}
+
+/* ── BAR LIST ── */
+.bar-list{display:flex;flex-direction:column;gap:8px;flex:1;justify-content:center;}
+.bar-item{display:flex;flex-direction:column;gap:3px;}
+.bar-row{display:flex;justify-content:space-between;font-size:10px;}
+.bar-track{height:5px;background:var(--border);border-radius:3px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:3px;}
+
+/* ── SERVICOS ── */
+.srv-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;flex:1;}
+.srv-card{background:var(--surface2);border:1px solid var(--border);border-radius:7px;padding:8px 10px;transition:border-color .2s,transform .15s;}
+.srv-card:hover{border-color:#00d4ff;transform:translateY(-1px);}
+.srv-code{font-family:'Syne',sans-serif;font-size:13px;font-weight:700;margin-bottom:2px;}
+.srv-desc{font-size:9px;color:var(--muted);line-height:1.3;}
+.srv-n{font-size:10px;color:var(--muted);margin-top:3px;}
+
+/* ── MONTHLY ── */
+.month-mini{width:100%;border-collapse:collapse;margin-top:10px;flex-shrink:0;}
+.month-mini th{font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--muted);padding:5px 6px;text-align:center;border-bottom:1px solid var(--border);}
+.month-mini th:first-child{text-align:left;}
+.month-mini td{font-size:10px;padding:5px 6px;text-align:center;border-bottom:1px solid rgba(30,40,64,.6);}
+.month-mini td:first-child{text-align:left;color:var(--muted);}
+.month-mini tr:last-child td{border-bottom:none;}
+.month-mini tr:hover td{background:rgba(0,212,255,.04);}
+.m-num{font-family:'Syne',sans-serif;font-weight:700;color:#00d4ff;}
+
+/* ── WEEKLY ── */
+.week-table{width:100%;border-collapse:collapse;}
+.week-table thead tr{border-bottom:2px solid rgba(0,212,255,.3);}
+.week-table th{padding:8px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#00d4ff;text-align:center;}
+.week-table th:first-child{text-align:left;}
+.week-table tbody tr{border-bottom:1px solid var(--border);cursor:pointer;}
+.week-table tbody tr:hover td{background:rgba(0,212,255,.05);}
+.week-table td{padding:10px 8px;font-size:11px;text-align:center;}
+.week-table td:first-child{text-align:left;}
+.wk-date{font-size:11px;color:var(--text);font-weight:500;}
+.wk-arrow{font-size:9px;color:var(--muted);}
+.wk-bar{width:100%;height:2px;background:var(--border);border-radius:1px;margin-top:3px;overflow:hidden;}
+.wk-bar-fill{height:100%;background:linear-gradient(90deg,#00d4ff,rgba(0,212,255,.3));border-radius:1px;}
+.week-num{font-family:'Syne',sans-serif;font-weight:700;font-size:17px;}
+.week-val{font-family:'Syne',sans-serif;font-weight:600;font-size:11px;color:#22d47a;}
+.week-total td{font-family:'Syne',sans-serif;font-weight:700;color:#00d4ff;background:rgba(0,212,255,.04);border-top:2px solid rgba(0,212,255,.25)!important;}
+
+/* ── FUNIL ── */
+.funil-kpi{background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;}
+.funil-kpi:hover{transform:translateY(-2px);}
+.funil-kpi.active{border-color:var(--bc,#00d4ff);box-shadow:0 0 0 1px var(--bc,#00d4ff);}
+.os-item{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;margin-bottom:7px;transition:border-color .2s;}
+.os-item:hover{border-color:rgba(255,255,255,.15);}
+.os-num{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;white-space:nowrap;}
+.os-emp{font-size:10px;color:var(--text);line-height:1.4;margin-bottom:5px;}
+.os-dates{display:flex;gap:8px;flex-wrap:wrap;}
+.date-pill{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:3px;font-size:9px;font-weight:600;}
+
+/* ── OS ROW (status detail) ── */
+.os-row{display:grid;grid-template-columns:auto 1fr auto auto;gap:8px;align-items:center;padding:6px 8px;border-radius:6px;border:1px solid var(--border);background:var(--surface);margin-bottom:5px;transition:border-color .15s;}
+
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.card{animation:fadeIn .3s ease both;}
+
+
+/* ── LOADING SCREEN ── */
+#loading{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
+.ld-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;} .ld-logo span{color:#00d4ff;}
+.ld-sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
+.ld-icon{font-size:52px;animation:pulse 2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:.6;transform:scale(1)}50%{opacity:1;transform:scale(1.08)}}
+.ld-msg{font-size:12px;color:#00d4ff;font-family:'Syne',sans-serif;font-weight:700;}
+.ld-bar{width:380px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
+.ld-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .5s ease;}
+#loadError{color:#ff4757;font-size:12px;display:none;max-width:420px;text-align:center;}
+#btnReload{display:none;padding:8px 24px;background:#00d4ff;color:#0a0d14;border:none;border-radius:7px;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;margin-top:8px;}
+#btnReload:hover{filter:brightness(1.15);}
+</style>
+</head>
+<body>
+
+<!-- ══ LOADING ══ -->
+<div id="loading">
+  <div class="ld-logo">CONTROLE <span>CEMIG</span></div>
+  <div class="ld-sub">AVALICON ENGENHARIA — DASHBOARD AUTOMÁTICO</div>
+  <div class="ld-icon">📊</div>
+  <div class="ld-msg" id="loadMsg">⚙️ Conectando ao OneDrive...</div>
+  <div class="ld-bar"><div class="ld-fill" id="progFill"></div></div>
+  <div id="loadError"></div>
+  <button id="btnReload" onclick="carregarPlanilha()">🔄 Tentar novamente</button>
+</div>
+
+<!-- ══ DASHBOARD ══ -->
+<div id="dashWrapper" style="display:none;">
+  <div class="toolbar">
+    <div class="tb-logo">CONTROLE <span>CEMIG</span></div>
+    <div class="tb-sep"></div>
+    <span style="font-size:10px;color:var(--muted)">AVALICON ENGENHARIA</span>
+    <div class="tb-sep"></div>
+    <button class="tb-btn" onclick="carregarPlanilha()">🔄 Atualizar dados</button>
+    <div class="tb-right" id="tbRight">—</div>
+  </div>
+  <div class="canvas"><div class="dash-grid" id="grid"></div></div>
+</div>
+
+<!-- TOOLTIP -->
+<div class="tip" id="tip" style="display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid rgba(0,212,255,.4);border-radius:9px;padding:14px 16px;font-size:11px;min-width:200px;max-width:280px;box-shadow:0 8px 36px rgba(0,212,255,.2);pointer-events:none;">
+  <h4 id="tipTitle" style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#00d4ff;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--border);">—</h4>
+  <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--muted);font-size:10px;">OSs</span><span id="tipOs" style="font-weight:600;font-size:11px;">—</span></div>
+
+<script>
+
+// ══════════════════════════════════════════════════
+//  CONSTANTES E HELPERS
+// ══════════════════════════════════════════════════
+const C = {blue:'#00d4ff',green:'#22d47a',teal:'#7fff6b',yellow:'#ffd166',red:'#ff4757',orange:'#ff6b35',purple:'#a78bfa',muted:'#6b7a99'};
+const PALETTE = [C.blue,C.teal,C.yellow,C.orange,C.purple,C.green,C.red,C.muted];
+const CO = {plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Mono',size:10},boxWidth:9,padding:10}},tooltip:{backgroundColor:'#111520',borderColor:'#1e2840',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#6b7a99',titleFont:{family:'Syne',weight:'700'}}}};
+
+const EXCL_STATUS = new Set(['CANCELADA','EM ANDAMENTO','PARALISADA']);
+const EXCL_PAG    = new Set(['NÃO PAGO','NOVO FLUXO','NÃO PASSÍVEL DE MEDIÇÃO','NAO PAGO','NAO PASSIVEL DE MEDICAO']);
+const SKIP_DATE   = new Set(['FINALIZADO','N/A CAD.','N/A TOP.','N/A AVL.','CANCELADA',
+  'AGUARD. ANÁLISE','AGUAR. CAMPO','AGUAR. ANÁLISE','CAMPO TOP.','DEMANDADO','PENDENTE',
+  'RETORNO FINALIZADO','N/A CAD','N/A TOP','N/A AVL','']);
+const SRV_DESC    = {
+  'C - A - T':'Cadastro + Avaliação + Topografia',
+  'C - A':'Cadastro + Avaliação',
+  'C':'Cadastro',
+  'A':'Avaliação',
+  'C - T':'Cadastro + Topografia',
+  'T':'Topografia',
+  'A - T':'Avaliação + Topografia'
+};
+const SRV_COR = {
+  'C - A - T':C.blue,'C - A':C.teal,'C':C.yellow,
+  'A':C.orange,'C - T':C.purple,'T':C.muted,'A - T':C.red
+};
+
+function fmtBRL(v){
+  v = parseFloat(v)||0;
+  return 'R$ '+v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+function fmtShort(v){
+  v = parseFloat(v)||0;
+  if(Math.abs(v)>=1e6) return 'R$ '+(v/1e6).toFixed(2).replace('.',',')+'M';
+  if(Math.abs(v)>=1e3) return 'R$ '+(v/1e3).toFixed(1).replace('.',',')+'K';
+  return fmtBRL(v);
+}
+function isDateVal(v){
+  if(v==null||v===''||v===undefined) return false;
+  const s = String(v).trim().toUpperCase();
+  if(SKIP_DATE.has(s)) return false;
+  // testa se é número serial Excel ou string de data
+  if(typeof v === 'number') return true;
+  return /\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}/.test(String(v));
+}
+function isFim(v, tipos){
+  if(v==null) return false;
+  const s = String(v).trim().toUpperCase();
+  return tipos.some(t => s === t.toUpperCase());
+}
+function fmtDate(v){
+  if(v==null||v===''||v===undefined) return '—';
+  if(typeof v === 'number'){
+    // serial Excel -> JS Date
+    const d = new Date(Math.round((v - 25569)*86400*1000));
+    const dd = String(d.getUTCDate()).padStart(2,'0');
+    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+    const yy = d.getUTCFullYear();
+    return `${dd}/${mm}/${yy}`;
+  }
+  const s = String(v).trim();
+  // já é string de data? converte
+  const d = new Date(s);
+  if(!isNaN(d.getTime())){
+    const dd=String(d.getDate()).padStart(2,'0');
+    const mm=String(d.getMonth()+1).padStart(2,'0');
+    return `${dd}/${mm}/${d.getFullYear()}`;
+  }
+  return s;
+}
+
+// ── TOOLTIP ──
+const tip = document.getElementById('tip');
+function showTip(e,t,o,val,info){
+  document.getElementById('tipTitle').textContent=t;
+  document.getElementById('tipOs').textContent=o;
+  document.getElementById('tipVal').textContent=val;
+  document.getElementById('tipInfo').textContent=info||'—';
+  tip.style.display='block'; moveTip(e);
+}
+function moveTip(e){
+  const x=e.clientX+16,y=e.clientY-12;
+  tip.style.left=(x+tip.offsetWidth>window.innerWidth?x-tip.offsetWidth-32:x)+'px';
+  tip.style.top=(y+tip.offsetHeight>window.innerHeight?y-tip.offsetHeight:y)+'px';
+}
+function hideTip(){tip.style.display='none';}
+
+// ══════════════════════════════════════════════════
+//  UPLOAD / DROP
+// ══════════════════════════════════════════════════
+
+
+
+function setProgress(pct){
+  document.getElementById('progBar').style.display='block';
+  document.getElementById('progFill').style.width=pct+'%';
+}
+function showError(msg){
+  const el=document.getElementById('loadError');
+  el.style.display='block'; el.textContent='❌ '+msg;
+  document.getElementById('loadMsg').style.display='none';
+  document.getElementById('progBar').style.display='none';
+}
+
+
+
+// ══════════════════════════════════════════════════
+//  PROCESSAR DADOS
+// ══════════════════════════════════════════════════
+function processRows(rows){
+  // normaliza valor
+  rows.forEach(r => {
+    // Normaliza STATUS GERAL — remove aspas simples que às vezes aparecem
+    const cleanStr = v => String(v||'').trim().replace(/^'+|'+$/g,'').trim();
+
+    r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
+    r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
+    r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
+    // SERVIÇOS: mantém os espaços originais (ex: "C - A - T"), só remove espaços extras
+    r._serv   = cleanStr(r['SERVIÇOS']);
+    r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
+    r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
+    r._am     = r['PREV. ANÁLISE DOCUMENTAL'];
+    r._ap     = r['PREV. TOPOGRAFIA'];
+    r._av     = r['PREV. AVALIAÇÃO'];
+    r._os     = String(r['OS']||'').trim();
+    r._emp    = cleanStr(r['EMPREENDEDIMENTO']);
+    r._campo  = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
+  });
+  return rows;
+}
+
+function calcKpis(rows){
+  const statusCounts = {};
+  rows.forEach(r => {
+    const s = r._status;
+    if(s) statusCounts[s] = (statusCounts[s]||0)+1;
+  });
+
+  const totalMedido = rows
+    .filter(r => !EXCL_STATUS.has(r._status) && !EXCL_PAG.has(r._pag) && r._pag !== '')
+    .reduce((s,r)=>s+r._valor,0);
+
+  const pagRows   = rows.filter(r => r._pag === 'PAGO 100%');
+  const pago100   = pagRows.reduce((s,r)=>s+r._valor,0);
+
+  const faltaRows  = rows.filter(r => r._pag === 'FALTA 60%');
+  const faltaBruto = faltaRows.reduce((s,r)=>s+r._valor,0);
+  const faltaVal   = faltaBruto * 0.6;
+
+  const npRows = rows.filter(r =>
+    (r._pag === 'NÃO PAGO' || r['SITUAÇÃO PAGAMENTO']==null || r._pag === '') &&
+    !EXCL_STATUS.has(r._status)
+  );
+  const naPago = npRows.reduce((s,r)=>s+r._valor,0);
+
+  const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
+
+  return {statusCounts, totalMedido, pago100, pagCount:pagRows.length, faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
+}
+
+function calcMensal(rows){
+  // coluna DATA DA SOLICITAÇÃO ou DATA DO PEDIDO
+  const col = rows[0]?.['DATA DA SOLICITAÇÃO']!==undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
+  const counts = {};
+  rows.forEach(r=>{
+    let v = r[col];
+    if(v==null) return;
+    let d;
+    if(typeof v==='number'){d=new Date(Math.round((v-25569)*86400*1000));}
+    else{d=new Date(v);}
+    if(isNaN(d.getTime())) return;
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+    counts[key]=(counts[key]||0)+1;
+  });
+  const keys = Object.keys(counts).sort().slice(-10);
+  const labels = keys.map(k=>{
+    const [y,m]=k.split('-');
+    const mNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    return mNames[parseInt(m)-1]+'/'+y.slice(2);
+  });
+  const values = keys.map(k=>counts[k]);
+  return {labels,values};
+}
+
+function calcServicos(rows){
+  const counts={};
+  rows.forEach(r=>{if(r._serv)counts[r._serv]=(counts[r._serv]||0)+1;});
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  return {labels:sorted.map(x=>x[0]),values:sorted.map(x=>x[1])};
+}
+
+function calcResponsaveis(rows){
+  const c={},v={};
+  rows.forEach(r=>{
+    if(!r._resp) return;
+    c[r._resp]=(c[r._resp]||0)+1;
+    v[r._resp]=(v[r._resp]||0)+r._valor;
+  });
+  const sortC=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const sortV=Object.entries(v).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  return {byCount:sortC,byValor:sortV};
+}
+
+function calcCampo(rows){
+  const counts={};
+  rows.forEach(r=>{
+    const v=r._campo||'—';
+    counts[v]=(counts[v]||0)+1;
+  });
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+}
+
+function calcSemanal(rows){
+  const col='DATA DE ENTREGA';
+  const semanas=[];
+  const hoje=new Date();
+  // domingo da semana atual
+  const dom=new Date(hoje); dom.setDate(dom.getDate()-dom.getDay());
+  for(let i=0;i<6;i++){
+    const fim=new Date(dom); fim.setDate(dom.getDate()-i*7);
+    const ini=new Date(fim); ini.setDate(fim.getDate()-6);
+    const sub=rows.filter(r=>{
+      let v=r[col]; if(v==null) return false;
+      let d; if(typeof v==='number'){d=new Date(Math.round((v-25569)*86400*1000));}else{d=new Date(v);}
+      if(isNaN(d.getTime())) return false;
+      return d>=ini&&d<=fim;
+    });
+    if(sub.length>0){
+      const props=sub.reduce((s,r)=>s+(parseFloat(r['Nº PROP.'])||0),0);
+      const val=sub.reduce((s,r)=>s+r._valor,0);
+      const fmt=d=>`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+      semanas.push({ini:fmt(ini),fim:fmt(fim),os:sub.length,prop:Math.round(props),val:Math.round(val*100)/100});
+    }
+  }
+  return semanas.slice(0,5);
+}
+
+function calcFunil(rows){
+  const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
+  const base8    = baseAll.filter(r => r._al === 'FINALIZADO' || r['STATUS CAD. CAMPO'] == null || r._al === '');
+  const campoPend= baseAll.filter(r => !base8.includes(r));
+
+  const cad = base8.filter(r=>isDateVal(r._am));
+  const top = base8.filter(r=>isFim(r._am,['FINALIZADO','N/A CAD.'])&&isDateVal(r._ap));
+  const avl = base8.filter(r=>isFim(r._am,['FINALIZADO','N/A CAD.'])&&isFim(r._ap,['FINALIZADO','N/A TOP.'])&&isDateVal(r._av));
+  const todosOS=new Set([...cad,...top,...avl].map(r=>r._os));
+  const concluida=base8.filter(r=>
+    isFim(r._am,['FINALIZADO','N/A CAD.'])&&
+    isFim(r._ap,['FINALIZADO','N/A TOP.'])&&
+    isFim(r._av,['FINALIZADO','N/A AVL.'])&&
+    !todosOS.has(r._os)
+  );
+  const toObj=r=>({os:r._os,emp:r._emp.substring(0,60),am:fmtDate(r._am),ap:fmtDate(r._ap),av:fmtDate(r._av),campo:r._campo});
+  return {
+    all:baseAll.map(toObj), base8:base8.map(toObj), campoPend:campoPend.map(toObj),
+    cad:cad.map(toObj), top:top.map(toObj), avl:avl.map(toObj), concluida:concluida.map(toObj)
+  };
+}
+
+function calcStatusDetail(rows){
+  const d={};
+  ['EM ANDAMENTO','PARALISADA','EM REVISÃO','REVISADA'].forEach(s=>{
+    d[s]=rows.filter(r=>r._status===s).map(r=>({os:r._os,emp:r._emp.substring(0,60),serv:r._serv,resp:r._resp}));
+  });
+  return d;
+}
+
+// ══════════════════════════════════════════════════
+//  BUILD DASHBOARD
+// ══════════════════════════════════════════════════
+let charts=[];
+function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
+
+function buildDashboard(rawRows, filename){
+  destroyCharts();
+  const rows   = processRows(rawRows);
+  const kpis   = calcKpis(rows);
+  const mensal = calcMensal(rows);
+  const servs  = calcServicos(rows);
+  const resps  = calcResponsaveis(rows);
+  const campo  = calcCampo(rows);
+  const seman  = calcSemanal(rows);
+  const funil  = calcFunil(rows);
+  const stDet  = calcStatusDetail(rows);
+
+  document.getElementById('tbRight').textContent = `${rows.length} OSs · ${filename} · ${new Date().toLocaleDateString('pt-BR')}`;
+
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+
+  // ── helper: criar card ──
+  function card(colClass, minH, innerHTML){
+    const d=document.createElement('div');
+    d.className=`card ${colClass}`;
+    if(minH) d.style.minHeight=minH+'px';
+    d.innerHTML=`<div class="card-inner">${innerHTML}</div>`;
+    grid.appendChild(d);
+    return d;
+  }
+
+  // ── ROW 1: 4 KPIs ──
+  function kpiCard(col,acc,lbl,short,full,sub,note){
+    card(col,0,`
+      <div class="accent-bar" style="background:${acc}"></div>
+      <div class="kpi-lbl">${lbl}</div>
+      <div class="kpi-v" style="color:${acc}" data-full="${full}" data-short="${short}"
+        onmouseenter="this.textContent=this.dataset.full" onmouseleave="this.textContent=this.dataset.short">${short}</div>
+      <div class="kpi-sub">${sub}</div>
+      ${note?`<div class="kpi-note">${note}</div>`:''}
+    `);
+  }
+  kpiCard('c3',C.blue, 'Total Medido',  fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','excl. NP · Vazio · NF · NPM');
+  kpiCard('c3',C.green,'Pago 100%',     fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
+  kpiCard('c3',C.yellow,'Falta 60%',    fmtShort(kpis.faltaVal),    fmtBRL(kpis.faltaVal),    `${kpis.faltaCount} OSs · saldo restante`,`${fmtBRL(kpis.faltaBruto)} × 0,6`);
+  kpiCard('c3',C.red,  'Não Pago',      fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
+
+  // ── ROW 2a: STATUS GERAL ──
+  let statusAtivo=null;
+  const sc=kpis.statusCounts;
+  function pillHtml(key,label,cor,cls,clicavel=false){
+    const n=sc[key]||0;
+    const arrow=clicavel?`<span style="font-size:9px;color:${cor}88">▾</span>`:'';
+    const click=clicavel?`style="cursor:pointer" onclick="toggleStatus('${key}',this)"`:'';
+    return `<div class="s-pill ${cls}" ${click}>
+      <div style="display:flex;align-items:center"><div class="s-dot" style="background:${cor}"></div><div class="s-name" style="color:${cor}">${label}</div></div>
+      <div style="display:flex;align-items:center;gap:4px"><div class="s-num" style="color:${cor}">${n}</div>${arrow}</div>
+    </div>`;
+  }
+  const statusCard = card('c3',280,`
+    <div class="card-title">Status Geral das OSs</div>
+    <div class="status-grid">
+      ${pillHtml('VALIDADA','Validada','#22d47a','pill-v')}
+      ${pillHtml('ENTREGUE','Entregue','#7fff6b','pill-e')}
+      <div style="grid-column:span 2">${pillHtml('CANCELADA','Cancelada','#ff4757','pill-c')}</div>
+      ${pillHtml('EM ANDAMENTO','Em Andamento','#00d4ff','pill-a',true)}
+      ${pillHtml('PARALISADA','Paralisada','#ffd166','pill-p',true)}
+      ${pillHtml('EM REVISÃO','Em Revisão','#a78bfa','pill-r',true)}
+      ${pillHtml('REVISADA','Revisada','#9aa8c0','pill-rv',true)}
+    </div>
+    <div class="detail-panel" id="statusPanel"></div>
+  `);
+
+  // status detail toggle
+  window.toggleStatus = function(key, pillEl){
+    const panel=document.getElementById('statusPanel');
+    const d=stDet[key]||[];
+    const colorMap={'EM ANDAMENTO':C.blue,'PARALISADA':C.yellow,'EM REVISÃO':C.purple,'REVISADA':'#9aa8c0'};
+    const cor=colorMap[key]||C.muted;
+    document.querySelectorAll('.pill-a,.pill-p,.pill-r,.pill-rv').forEach(p=>p.style.boxShadow='');
+    if(statusAtivo===key){panel.style.display='none';statusAtivo=null;return;}
+    statusAtivo=key;
+    pillEl.style.boxShadow=`0 0 0 1px ${cor},0 4px 16px ${cor}33`;
+    const srvC=s=>(SRV_COR[s]||C.muted);
+    panel.innerHTML=`
+      <div style="font-family:'Syne',sans-serif;font-size:10px;font-weight:700;color:${cor};margin-bottom:8px;">${key} <span style="font-size:9px;background:${cor}22;border:1px solid ${cor}44;border-radius:3px;padding:1px 7px;">${d.length}</span></div>
+      ${d.map(r=>`<div class="os-row">
+        <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:11px;color:${cor};white-space:nowrap;">#${r.os}</span>
+        <span style="font-size:10px;overflow:hidden;text-overflow:ellipsis;">${r.emp}</span>
+        <span style="font-size:9px;padding:1px 7px;border-radius:3px;background:${srvC(r.serv)}22;color:${srvC(r.serv)};border:1px solid ${srvC(r.serv)}44;white-space:nowrap;">${r.serv}</span>
+        <span style="font-size:9px;color:var(--muted);white-space:nowrap;">${r.resp}</span>
+      </div>`).join('')}`;
+    panel.style.display='block';
+  };
+
+  // ── ROW 2b: PAGAMENTO ──
+  const pagCard = card('c4',280,`
+    <div class="card-title">Situação de Pagamento</div>
+    <table class="pay-table"><tbody>
+      <tr><td>Pago 100%</td><td><span class="badge bg">OK</span></td><td style="color:#22d47a">${fmtBRL(kpis.pago100)}</td></tr>
+      <tr><td>Falta 60%</td><td><span class="badge by">PARCIAL</span></td><td style="color:#ffd166">${fmtBRL(kpis.faltaVal)} <span style="font-size:9px;color:var(--muted)">×0,6</span></td></tr>
+      <tr><td>Multa</td><td><span class="badge bo">MULTA</span></td><td style="color:#ff6b35">${fmtBRL(kpis.multaVal)}</td></tr>
+      <tr><td>Não Pago</td><td><span class="badge br">ABERTO</span></td><td style="color:#ff4757">${fmtBRL(kpis.naPago)}</td></tr>
+    </tbody></table>
+    <div style="flex:1;position:relative;min-height:90px;"><canvas id="chartPag"></canvas></div>
+  `);
+  charts.push(new Chart(document.getElementById('chartPag'),{
+    type:'doughnut',
+    data:{labels:['Pago 100%','Falta 60%','Multa','Não Pago'],datasets:[{data:[kpis.pagCount,kpis.faltaCount,4,kpis.npCount],backgroundColor:['#22d47a22','#ffd16622','#ff6b3522','#ff475722'],borderColor:['#22d47a','#ffd166','#ff6b35','#ff4757'],borderWidth:2,hoverOffset:5}]},
+    options:{...CO,cutout:'62%',plugins:{...CO.plugins,legend:{position:'right',labels:{...CO.plugins.legend.labels}}}}
+  }));
+
+  // ── ROW 2c: MENSAL ──
+  card('c5',280,`
+    <div class="card-title">OSs Solicitadas por Mês</div>
+    <div style="flex:1;position:relative;min-height:130px;"><canvas id="chartMensal"></canvas></div>
+    <table class="month-mini"><thead><tr><th>Mês</th><th>OSs</th><th>Distribuição</th></tr></thead><tbody id="monthBody"></tbody></table>
+  `);
+  charts.push(new Chart(document.getElementById('chartMensal'),{
+    type:'line',
+    data:{labels:mensal.labels,datasets:[{data:mensal.values,borderColor:C.blue,backgroundColor:'rgba(0,212,255,0.07)',borderWidth:2,pointBackgroundColor:C.blue,pointRadius:3,pointHoverRadius:6,fill:true,tension:.4}]},
+    options:{...CO,scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},maxRotation:30},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9}},grid:{color:'#1e2840'},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
+  }));
+  // monthly mini table
+  const mTotal=mensal.values.reduce((a,b)=>a+b,0);
+  const maxM=Math.max(...mensal.values);
+  const mBody=document.getElementById('monthBody');
+  mensal.labels.forEach((lbl,i)=>{
+    const v=mensal.values[i];
+    const isPeak=v===maxM,isMin=v===Math.min(...mensal.values);
+    const bw=Math.round(v/maxM*80);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td>${lbl} ${isPeak?'🔺':isMin?'🔻':''}</td><td><span class="m-num" style="${isPeak?'color:#ff6b35':''}">${v}</span></td><td><div style="display:flex;align-items:center;gap:4px;"><div style="width:${bw}px;height:6px;background:${isPeak?C.orange:'rgba(0,212,255,.4)'};border-radius:3px;min-width:4px;"></div><span style="font-size:9px;color:var(--muted)">${((v/mTotal)*100).toFixed(1)}%</span></div></td>`;
+    mBody.appendChild(tr);
+  });
+  const mTr=document.createElement('tr');mTr.style.cssText='border-top:2px solid rgba(0,212,255,.25);background:rgba(0,212,255,.03);';
+  mTr.innerHTML=`<td style="font-family:Syne,sans-serif;font-weight:700;color:#00d4ff;font-size:10px;">TOTAL</td><td><span class="m-num">${mTotal}</span></td><td><span style="font-size:9px;color:var(--muted)">100%</span></td>`;
+  mBody.appendChild(mTr);
+
+  // ── ROW 3a: SERVIÇOS ──
+  card('c3',240,`<div class="card-title">Distribuição por Serviço</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartServ"></canvas></div>`);
+  charts.push(new Chart(document.getElementById('chartServ'),{
+    type:'polarArea',
+    data:{labels:servs.labels,datasets:[{data:servs.values,backgroundColor:PALETTE.map(c=>c+'22'),borderColor:PALETTE,borderWidth:2}]},
+    options:{...CO,scales:{r:{ticks:{display:false},grid:{color:'#1e2840'},pointLabels:{color:'#6b7a99',font:{family:'DM Mono',size:9}}}},plugins:{...CO.plugins,legend:{display:false}}}
+  }));
+
+  // ── ROW 3b: ENTREGAS SEMANAIS ──
+  card('c5',240,`
+    <div class="card-title">Quantitativo de Entrega Semanal</div>
+    <table class="week-table">
+      <thead><tr><th style="text-align:left">Período</th><th>OSs</th><th>Nº Prop.</th><th>Valor</th></tr></thead>
+      <tbody id="weekBody"></tbody>
+    </table>
+  `);
+  const wBody=document.getElementById('weekBody');
+  const maxOSw=seman.length?Math.max(...seman.map(r=>r.os)):1;
+  seman.forEach(row=>{
+    const pct=Math.round(row.os/maxOSw*100);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td><div style="display:flex;flex-direction:column;gap:3px;">
+        <span class="wk-date">📅 ${row.ini}</span><span class="wk-arrow">↓ até</span>
+        <span class="wk-date">📅 ${row.fim}</span>
+        <div class="wk-bar"><div class="wk-bar-fill" style="width:${pct}%"></div></div>
+      </div></td>
+      <td><span class="week-num" style="color:#00d4ff">${row.os}</span></td>
+      <td><span class="week-num" style="color:#7fff6b">${row.prop}</span></td>
+      <td><span class="week-val">${fmtBRL(row.val)}</span></td>`;
+    tr.addEventListener('mouseenter',e=>showTip(e,`${row.ini} → ${row.fim}`,`${row.os} OSs`,fmtBRL(row.val),`${row.prop} propriedades`));
+    tr.addEventListener('mousemove',moveTip);tr.addEventListener('mouseleave',hideTip);
+    tr.addEventListener('click',()=>tr.classList.toggle('active-row'));
+    wBody.appendChild(tr);
+  });
+  if(seman.length){
+    const tOS=seman.reduce((a,r)=>a+r.os,0);
+    const tP=seman.reduce((a,r)=>a+r.prop,0);
+    const tV=seman.reduce((a,r)=>a+r.val,0);
+    const ttr=document.createElement('tr');ttr.className='week-total';
+    ttr.innerHTML=`<td style="font-size:10px;">SOMATÓRIO</td><td><span class="week-num">${tOS}</span></td><td><span class="week-num">${tP}</span></td><td><span class="week-val" style="color:#00d4ff">${fmtBRL(tV)}</span></td>`;
+    wBody.appendChild(ttr);
+  }
+
+  // ── ROW 3c: STATUS CAMPO ──
+  card('c4',240,`<div class="card-title">Status Campo</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartCampo"></canvas></div>`);
+  charts.push(new Chart(document.getElementById('chartCampo'),{
+    type:'doughnut',
+    data:{labels:campo.map(x=>x[0]),datasets:[{data:campo.map(x=>x[1]),backgroundColor:PALETTE.map(c=>c+'22'),borderColor:PALETTE,borderWidth:2,hoverOffset:5}]},
+    options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
+  }));
+
+  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
+  const barCard=card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
+  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
+  resps.byCount.forEach(([n,c],i)=>{
+    const div=document.createElement('div');div.className='bar-item';
+    div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
+    div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
+    div.addEventListener('mousemove',moveTip);div.addEventListener('mouseleave',hideTip);
+    document.getElementById('barResp').appendChild(div);
+  });
+
+  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
+  card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
+  charts.push(new Chart(document.getElementById('chartValor'),{
+    type:'bar',
+    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
+    options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
+  }));
+
+  // ── ROW 4c: LEGENDA SERVIÇOS ──
+  card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
+  servs.labels.forEach((lbl,i)=>{
+    const d=document.createElement('div');d.className='srv-card';
+    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
+    document.getElementById('srvGrid').appendChild(d);
+  });
+
+  // ── ROW 5: FUNIL ──
+  let setorAtivo=null;
+  const funilCard=card('c12',0,`
+    <div class="card-title">Funil de Setores — OSs em Andamento</div>
+    <div style="display:grid;grid-template-columns:80px 16px 1fr 16px 1fr 16px 1fr 16px 1fr;align-items:center;gap:8px;margin-bottom:16px;">
+      <div style="background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:8px;padding:10px;text-align:center;cursor:pointer;" onclick="toggleSetor('total')">
+        <div style="font-size:8px;color:var(--muted);text-transform:uppercase;margin-bottom:3px;line-height:1.3;">EM<br>ANDAMENTO</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#00d4ff;">${funil.all.length}</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:rgba(0,212,255,.3)">→</div>
+      <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:8px 12px;text-align:center;cursor:pointer;" onclick="toggleSetor('base')">
+        <div style="font-size:8px;color:#00d4ff;text-transform:uppercase;margin-bottom:3px;">🏗️ Campo Finalizado / N/A</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#00d4ff;">${funil.base8.length}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">STATUS CAD. CAMPO (AL)</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:rgba(0,212,255,.25)">→</div>
+      <div class="funil-kpi" style="--bc:#00d4ff;" onclick="toggleSetor('cad')">
+        <div style="font-size:8px;color:#00d4ff;text-transform:uppercase;margin-bottom:3px;">📋 CAD.</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#00d4ff;">${funil.cad.length}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">data em PREV. CAD.</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:rgba(127,255,107,.3)">→</div>
+      <div class="funil-kpi" style="--bc:#7fff6b;" onclick="toggleSetor('top')">
+        <div style="font-size:8px;color:#7fff6b;text-transform:uppercase;margin-bottom:3px;">🗺️ TOPOGRAFIA</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#7fff6b;">${funil.top.length}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD. ok · data em PREV. TOP.</div>
+      </div>
+      <div style="text-align:center;font-size:16px;color:rgba(255,107,53,.3)">→</div>
+      <div class="funil-kpi" style="--bc:#ff6b35;" onclick="toggleSetor('avl')">
+        <div style="font-size:8px;color:#ff6b35;text-transform:uppercase;margin-bottom:3px;">⚖️ AVALIAÇÃO</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#ff6b35;">${funil.avl.length}</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD.+TOP. ok · data em PREV. AVL.</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 12px;background:rgba(34,212,122,.04);border:1px solid rgba(34,212,122,.15);border-radius:7px;cursor:pointer;" onclick="toggleSetor('concluida')">
+      <span style="font-family:'Syne',sans-serif;font-weight:700;color:#22d47a;font-size:10px;">✅ CONCLUÍDA —</span>
+      <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#22d47a;">${funil.concluida.length} OS</span>
+      <span style="font-size:9px;color:var(--muted)">todas etapas FINALIZADO</span>
+      <span style="font-size:9px;color:rgba(34,212,122,.4);margin-left:auto;">clique ▾</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;padding:7px 12px;background:rgba(255,209,102,.04);border:1px solid rgba(255,209,102,.15);border-radius:7px;cursor:pointer;" onclick="toggleSetor('campoPend')">
+      <span style="font-family:'Syne',sans-serif;font-weight:700;color:#ffd166;font-size:10px;">⏳ AGUARDANDO CAMPO —</span>
+      <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:14px;color:#ffd166;">${funil.campoPend.length} OSs</span>
+      <span style="font-size:9px;color:var(--muted)">AL = DEMANDADO ou PENDENTE</span>
+      <span style="font-size:9px;color:rgba(255,209,102,.4);margin-left:auto;">clique ▾</span>
+    </div>
+    <div id="funilDetail" style="display:none;">
+      <div id="funilDetailInner" style="border-radius:9px;padding:14px 16px;border:1px solid var(--border);"></div>
+    </div>
+    <div style="margin-top:10px;font-size:9px;color:rgba(107,122,153,.3);">
+      📌 ${funil.all.length} EM ANDAMENTO → filtro AL = ${funil.base8.length} campo ok → cascata CAD. → TOP. → AVL.
+    </div>
+  `);
+
+  const funilGroups={
+    total:    {label:'🔵 TODAS EM ANDAMENTO',  color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'STATUS GERAL = EM ANDAMENTO',                oss:funil.all},
+    base:     {label:'🏗️ CAMPO OK / N/A',      color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'AL = FINALIZADO ou vazio',                   oss:funil.base8},
+    cad:      {label:'📋 CAD.',                color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'PREV. CAD. tem data',                         oss:funil.cad},
+    top:      {label:'🗺️ TOPOGRAFIA',          color:'#7fff6b',bg:'rgba(127,255,107,.05)',border:'rgba(127,255,107,.22)',filtro:'CAD. ok · PREV. TOP. tem data',              oss:funil.top},
+    avl:      {label:'⚖️ AVALIAÇÃO',           color:'#ff6b35',bg:'rgba(255,107,53,.05)', border:'rgba(255,107,53,.22)', filtro:'CAD.+TOP. ok · PREV. AVL. tem data',        oss:funil.avl},
+    concluida:{label:'✅ CONCLUÍDA',           color:'#22d47a',bg:'rgba(34,212,122,.05)', border:'rgba(34,212,122,.2)',  filtro:'Todas etapas FINALIZADO',                    oss:funil.concluida},
+    campoPend:{label:'⏳ AGUARDANDO CAMPO',    color:'#ffd166',bg:'rgba(255,209,102,.05)',border:'rgba(255,209,102,.25)',filtro:'AL = DEMANDADO ou PENDENTE',                  oss:funil.campoPend},
+  };
+
+  window.toggleSetor=function(key){
+    const detail=document.getElementById('funilDetail');
+    const inner=document.getElementById('funilDetailInner');
+    const d=funilGroups[key];
+    document.querySelectorAll('.funil-kpi').forEach(el=>el.classList.remove('active'));
+    if(setorAtivo===key){detail.style.display='none';setorAtivo=null;return;}
+    setorAtivo=key;
+    const mapa={cad:0,top:1,avl:2};
+    const kpiEls=document.querySelectorAll('.funil-kpi');
+    if(mapa[key]!==undefined&&kpiEls[mapa[key]])kpiEls[mapa[key]].classList.add('active');
+    const pill=(label,val,r,g,b)=>{
+      const isD=/\d{2}\/\d{2}\/\d{4}/.test(val);
+      const bg=isD?`rgba(${r},${g},${b},.16)`:'rgba(107,122,153,.1)';
+      const tc=isD?`rgb(${r},${g},${b})`:'#6b7a99';
+      const brd=isD?`rgba(${r},${g},${b},.3)`:'rgba(107,122,153,.2)';
+      return `<span class="date-pill" style="background:${bg};color:${tc};border:1px solid ${brd};">${isD?'📅 ':''}${label}: ${val}</span>`;
+    };
+    inner.style.background=d.bg;inner.style.borderColor=d.border;
+    inner.innerHTML=`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:${d.color};display:flex;align-items:center;gap:8px;">${d.label}
+          <span style="background:${d.bg};border:1px solid ${d.border};border-radius:4px;padding:1px 10px;font-size:13px;">${d.oss.length}</span>
+        </div>
+        <div style="font-size:9px;color:var(--muted);text-align:right;">🔍 ${d.filtro}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:8px;">
+        ${d.oss.map(r=>`
+          <div class="os-item">
+            <div class="os-num" style="color:${d.color};">#${r.os}</div>
+            <div>
+              <div class="os-emp">${r.emp}</div>
+              <div class="os-dates">
+                <span style="font-size:9px;color:var(--muted)">CAMPO: <b style="color:${r.campo==='FINALIZADO'?'#22d47a':r.campo==='N/A'?'#6b7a99':'#ffd166'}">${r.campo}</b></span>
+                ${pill('CAD',r.am,0,212,255)}${pill('TOP',r.ap,127,255,107)}${pill('AVL',r.av,255,107,53)}
+              </div>
+            </div>
+          </div>`).join('')}
+      </div>`;
+    detail.style.display='block';
+    setTimeout(()=>detail.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
+  };
+}
+
+
+// ══════════════════════════════════════════════════
+//  AUTO-LOAD DO ONEDRIVE
+// ══════════════════════════════════════════════════
+async function carregarPlanilha() {
+  const loading = document.getElementById('loading');
+  const progFill = document.getElementById('progFill');
+  const loadMsg  = document.getElementById('loadMsg');
+  const loadError= document.getElementById('loadError');
+
+  loading.style.display = 'flex';
+  loadMsg.style.display = 'block';
+  loadMsg.textContent = '⚙️ Conectando ao OneDrive...';
+  progFill.style.width = '20%';
+
+  try {
+    const res = await fetch('/api/planilha');
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({error: res.statusText}));
+      throw new Error(err.error || `HTTP ${res.status}`);
+    }
+
+    loadMsg.textContent = '⚙️ Lendo planilha...';
+    progFill.style.width = '50%';
+
+    const buffer = await res.arrayBuffer();
+
+    loadMsg.textContent = '⚙️ Processando dados...';
+    progFill.style.width = '75%';
+
+    const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
+    const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+
+    // AZ3
+    const cellAZ3 = ws['AZ3'];
+    let totalMedidoAZ3 = null;
+    if (cellAZ3) {
+      if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
+        totalMedidoAZ3 = cellAZ3.v;
+      } else if (cellAZ3.w) {
+        const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g,'').replace(',','.'));
+        if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
+      }
+    }
+
+    const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+
+    let headerRowIdx = 2;
+    for (let i = 0; i < Math.min(10, raw.length); i++) {
+      if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS')) {
+        headerRowIdx = i; break;
+      }
+    }
+
+    const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
+    const rows = [];
+    for (let i = headerRowIdx + 1; i < raw.length; i++) {
+      const arr = raw[i] || [];
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = arr[idx] !== undefined ? arr[idx] : null; });
+      const osVal = obj['OS'];
+      if (osVal == null) continue;
+      const osStr = String(osVal).trim();
+      if (osStr === '' || osStr === '0' || osStr === 'null') continue;
+      rows.push(obj);
+    }
+
+    progFill.style.width = '100%';
+
+    setTimeout(() => {
+      loading.style.display = 'none';
+      document.getElementById('dashWrapper').style.display = 'block';
+      buildDashboard(rows, 'CONTROLE_CEMIG.xlsx', totalMedidoAZ3);
+    }, 300);
+
+  } catch (err) {
+    console.error(err);
+    loadError.style.display = 'block';
+    loadError.textContent = '❌ Erro ao carregar: ' + err.message;
+    loadMsg.style.display = 'none';
+  }
+}
+
+// Inicia ao carregar a página
+window.addEventListener('DOMContentLoaded', carregarPlanilha);
+
+// Função de download (mantida)
+
+function downloadDashboard() {
+  // Download desabilitado na versão online
+  alert('Na versão online o download não está disponível.\nAcesse o link do dashboard direto pelo navegador.');
+}
+</script>
+</body>
+</html>
