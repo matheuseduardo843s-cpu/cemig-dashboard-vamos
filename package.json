@@ -1,0 +1,8 @@
+{
+  "name": "cemig-dashboard",
+  "version": "1.0.0",
+  "dependencies": {
+    "@vercel/kv": "^1.0.0",
+    "xlsx": "^0.18.5"
+  }
+}
