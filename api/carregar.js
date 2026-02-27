@@ -1,5 +1,7 @@
-// api/carregar.js — retorna os dados salvos no KV
-import { kv } from '@vercel/kv';
+// api/carregar.js
+import { Redis } from '@upstash/redis';
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -7,7 +9,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') { res.status(200).end(); return; }
 
   try {
-    const raw = await kv.get('dashboard_data');
+    const raw = await redis.get('dashboard_data');
     if (!raw) {
       res.status(404).json({ error: 'Nenhum dado salvo ainda' });
       return;
