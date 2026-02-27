@@ -822,92 +822,89 @@ function trocarArquivo() {
 }
 
 function processFile(file) {
-  const loading = document.getElementById('loading');
   const progFill = document.getElementById('progFill');
+  const progBar  = document.getElementById('progBar');
   const loadMsg  = document.getElementById('loadMsg');
   const loadError= document.getElementById('loadError');
 
-  loading.style.display = 'flex';
   loadMsg.style.display = 'block';
-  loadMsg.textContent = '⚙️ Conectando ao OneDrive...';
+  loadMsg.textContent = '⚙️ Lendo arquivo...';
+  progBar.style.display = 'block';
   progFill.style.width = '20%';
+  loadError.style.display = 'none';
 
-  try {
-    const res = await fetch('/api/planilha');
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({error: res.statusText}));
-      throw new Error(err.error || `HTTP ${res.status}`);
-    }
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      progFill.style.width = '50%';
+      const buffer = e.target.result;
+      const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
+      const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
+      const ws = wb.Sheets[sheetName];
 
-    loadMsg.textContent = '⚙️ Lendo planilha...';
-    progFill.style.width = '50%';
-
-    const buffer = await res.arrayBuffer();
-
-    loadMsg.textContent = '⚙️ Processando dados...';
-    progFill.style.width = '75%';
-
-    const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
-    const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
-    const ws = wb.Sheets[sheetName];
-
-    // AZ3
-    const cellAZ3 = ws['AZ3'];
-    let totalMedidoAZ3 = null;
-    if (cellAZ3) {
-      if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
-        totalMedidoAZ3 = cellAZ3.v;
-      } else if (cellAZ3.w) {
-        const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g,'').replace(',','.'));
-        if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
+      // AZ3
+      const cellAZ3 = ws['AZ3'];
+      let totalMedidoAZ3 = null;
+      if (cellAZ3) {
+        if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
+          totalMedidoAZ3 = cellAZ3.v;
+        } else if (cellAZ3.w) {
+          const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g,'').replace(',','.'));
+          if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
+        }
       }
-    }
 
-    const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
-
-    let headerRowIdx = 2;
-    for (let i = 0; i < Math.min(10, raw.length); i++) {
-      if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS')) {
-        headerRowIdx = i; break;
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+      let headerRowIdx = 2;
+      for (let i = 0; i < Math.min(10, raw.length); i++) {
+        if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS')) {
+          headerRowIdx = i; break;
+        }
       }
+      const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
+      const rows = [];
+      for (let i = headerRowIdx + 1; i < raw.length; i++) {
+        const arr = raw[i] || [];
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = arr[idx] !== undefined ? arr[idx] : null; });
+        const osVal = obj['OS'];
+        if (osVal == null) continue;
+        const osStr = String(osVal).trim();
+        if (osStr === '' || osStr === '0' || osStr === 'null') continue;
+        rows.push(obj);
+      }
+
+      progFill.style.width = '100%';
+      setTimeout(() => {
+        document.getElementById('uploadScreen').style.display = 'none';
+        document.getElementById('dashWrapper').style.display = 'block';
+        buildDashboard(rows, file.name, totalMedidoAZ3);
+      }, 300);
+
+    } catch(err) {
+      loadError.style.display = 'block';
+      loadError.textContent = '❌ Erro: ' + err.message;
+      loadMsg.style.display = 'none';
+      progBar.style.display = 'none';
     }
-
-    const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
-    const rows = [];
-    for (let i = headerRowIdx + 1; i < raw.length; i++) {
-      const arr = raw[i] || [];
-      const obj = {};
-      headers.forEach((h, idx) => { obj[h] = arr[idx] !== undefined ? arr[idx] : null; });
-      const osVal = obj['OS'];
-      if (osVal == null) continue;
-      const osStr = String(osVal).trim();
-      if (osStr === '' || osStr === '0' || osStr === 'null') continue;
-      rows.push(obj);
-    }
-
-    progFill.style.width = '100%';
-
-    setTimeout(() => {
-      loading.style.display = 'none';
-      document.getElementById('dashWrapper').style.display = 'block';
-      buildDashboard(rows, 'CONTROLE_CEMIG.xlsx', totalMedidoAZ3);
-    }, 300);
-
-  } catch (err) {
-    console.error(err);
-    loadError.style.display = 'block';
-    loadError.textContent = '❌ Erro ao carregar: ' + err.message;
-    loadMsg.style.display = 'none';
-  }
+  };
+  reader.readAsArrayBuffer(file);
 }
 
-// Inicia ao carregar a página
-// upload listeners already set above
-
-// Função de download (mantida)
+// Event listeners upload
+window.addEventListener('DOMContentLoaded', () => {
+  const fileInput = document.getElementById('fileInput');
+  const dropZone  = document.getElementById('dropZone');
+  fileInput.addEventListener('change', e => { if (e.target.files[0]) processFile(e.target.files[0]); });
+  dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag'); });
+  dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag'));
+  dropZone.addEventListener('drop', e => {
+    e.preventDefault(); dropZone.classList.remove('drag');
+    if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
+  });
+});
 
 function downloadDashboard() {
-  // Download desabilitado na versão online
   alert('Na versão online o download não está disponível.\nAcesse o link do dashboard direto pelo navegador.');
 }
 </script>
