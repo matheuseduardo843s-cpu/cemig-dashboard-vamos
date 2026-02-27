@@ -1,0 +1,73 @@
+// api/salvar.js — recebe o .xlsx, processa e salva os dados no KV
+import { kv } from '@vercel/kv';
+import * as XLSX from 'xlsx';
+
+export const config = { api: { bodyParser: false } };
+
+export default async function handler(req, res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+
+  try {
+    // Lê o body como buffer
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const buffer = Buffer.concat(chunks);
+
+    // Processa o xlsx
+    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false, cellFormula: true, cellNF: false });
+    const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
+    const ws = wb.Sheets[sheetName];
+
+    // AZ3
+    const cellAZ3 = ws['AZ3'];
+    let totalMedidoAZ3 = null;
+    if (cellAZ3) {
+      if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
+        totalMedidoAZ3 = cellAZ3.v;
+      } else if (cellAZ3.w) {
+        const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g, '').replace(',', '.'));
+        if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
+      }
+    }
+
+    const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    let headerRowIdx = 2;
+    for (let i = 0; i < Math.min(10, raw.length); i++) {
+      if ((raw[i] || []).some(v => v != null && String(v).trim() === 'OS')) {
+        headerRowIdx = i; break;
+      }
+    }
+
+    const headers = (raw[headerRowIdx] || []).map(h => h == null ? '' : String(h).trim());
+    const rows = [];
+    for (let i = headerRowIdx + 1; i < raw.length; i++) {
+      const arr = raw[i] || [];
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = arr[idx] !== undefined ? arr[idx] : null; });
+      const osVal = obj['OS'];
+      if (osVal == null) continue;
+      const osStr = String(osVal).trim();
+      if (osStr === '' || osStr === '0' || osStr === 'null') continue;
+      rows.push(obj);
+    }
+
+    const payload = {
+      rows,
+      totalMedidoAZ3,
+      updatedAt: new Date().toISOString(),
+      filename: req.headers['x-filename'] || 'planilha.xlsx'
+    };
+
+    // Salva no KV (expira em 30 dias)
+    await kv.set('dashboard_data', JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
+
+    res.status(200).json({ ok: true, rows: rows.length, updatedAt: payload.updatedAt });
+
+  } catch (err) {
+    console.error('Erro /api/salvar:', err);
+    res.status(500).json({ error: err.message });
+  }
+}
