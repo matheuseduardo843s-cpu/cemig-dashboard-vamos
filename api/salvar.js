@@ -1,8 +1,10 @@
-// api/salvar.js — recebe o .xlsx, processa e salva os dados no KV
-import { kv } from '@vercel/kv';
+// api/salvar.js
+import { Redis } from '@upstash/redis';
 import * as XLSX from 'xlsx';
 
 export const config = { api: { bodyParser: false } };
+
+const redis = Redis.fromEnv();
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -11,17 +13,14 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
 
   try {
-    // Lê o body como buffer
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
     const buffer = Buffer.concat(chunks);
 
-    // Processa o xlsx
     const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false, cellFormula: true, cellNF: false });
     const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
 
-    // AZ3
     const cellAZ3 = ws['AZ3'];
     let totalMedidoAZ3 = null;
     if (cellAZ3) {
@@ -61,8 +60,7 @@ export default async function handler(req, res) {
       filename: req.headers['x-filename'] || 'planilha.xlsx'
     };
 
-    // Salva no KV (expira em 30 dias)
-    await kv.set('dashboard_data', JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
+    await redis.set('dashboard_data', JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
 
     res.status(200).json({ ok: true, rows: rows.length, updatedAt: payload.updatedAt });
 
