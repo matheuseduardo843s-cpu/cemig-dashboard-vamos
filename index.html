@@ -349,7 +349,7 @@ function processRows(rows){
   return rows;
 }
 
-function calcKpis(rows){
+function calcKpis(rows, totalMedidoBA3){
   const statusCounts = {};
   rows.forEach(r => {
     const s = r._status;
@@ -375,7 +375,9 @@ function calcKpis(rows){
 
   const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
 
-  return {statusCounts, totalMedido, pago100, pagCount:pagRows.length, faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
+  // Usa valor direto da célula BA3 se disponível
+  const totalMedidoFinal = (totalMedidoBA3 && totalMedidoBA3 > 0) ? totalMedidoBA3 : totalMedido;
+  return {statusCounts, totalMedido: totalMedidoFinal, pago100, pagCount:pagRows.length, faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
 }
 
 function calcMensal(rows){
@@ -491,10 +493,10 @@ function calcStatusDetail(rows){
 let charts=[];
 function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
 
-function buildDashboard(rawRows, filename){
+function buildDashboard(rawRows, filename, totalMedidoBA3){
   destroyCharts();
   const rows   = processRows(rawRows);
-  const kpis   = calcKpis(rows);
+  const kpis   = calcKpis(rows, totalMedidoBA3);
   const mensal = calcMensal(rows);
   const servs  = calcServicos(rows);
   const resps  = calcResponsaveis(rows);
