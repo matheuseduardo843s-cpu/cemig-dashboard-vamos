@@ -458,7 +458,10 @@ function calcSemanal(rows){
 
 function calcFunil(rows){
   const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
-  const base8    = baseAll.filter(r => r._al === 'FINALIZADO' || r['STATUS CAD. CAMPO'] == null || r._al === '');
+
+  // Campo OK = FINALIZADO, N/A (qualquer variação), RETORNO FINALIZADO, vazio ou null
+  const CAMPO_OK = new Set(['FINALIZADO','N/A','N/A CAD.','N/A TOP.','N/A AVL.','N/A CAD','N/A TOP','N/A AVL','RETORNO FINALIZADO']);
+  const base8    = baseAll.filter(r => CAMPO_OK.has(r._al) || r['STATUS CAD. CAMPO'] == null || r._al === '');
   const campoPend= baseAll.filter(r => !base8.includes(r));
 
   const cad = base8.filter(r=>isDateVal(r._am));
