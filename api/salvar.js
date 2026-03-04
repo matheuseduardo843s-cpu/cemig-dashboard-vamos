@@ -21,14 +21,15 @@ export default async function handler(req, res) {
     const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
 
-    const cellAZ3 = ws['AZ3'];
-    let totalMedidoAZ3 = null;
-    if (cellAZ3) {
-      if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
-        totalMedidoAZ3 = cellAZ3.v;
-      } else if (cellAZ3.w) {
-        const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g, '').replace(',', '.'));
-        if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
+    // Lê célula BA3 diretamente
+    const cellBA3 = ws['BA3'];
+    let totalMedidoBA3 = null;
+    if (cellBA3) {
+      if (typeof cellBA3.v === 'number' && cellBA3.v > 0) {
+        totalMedidoBA3 = cellBA3.v;
+      } else if (cellBA3.w) {
+        const p = parseFloat(String(cellBA3.w).replace(/[^0-9,.-]/g, '').replace(',', '.'));
+        if (!isNaN(p) && p > 0) totalMedidoBA3 = p;
       }
     }
 
@@ -55,14 +56,14 @@ export default async function handler(req, res) {
 
     const payload = {
       rows,
-      totalMedidoAZ3,
+      totalMedidoBA3,   // ← nome correto agora
       updatedAt: new Date().toISOString(),
       filename: req.headers['x-filename'] || 'planilha.xlsx'
     };
 
     await redis.set('dashboard_data', JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
 
-    res.status(200).json({ ok: true, rows: rows.length, updatedAt: payload.updatedAt });
+    res.status(200).json({ ok: true, rows: rows.length, totalMedidoBA3, updatedAt: payload.updatedAt });
 
   } catch (err) {
     console.error('Erro /api/salvar:', err);
