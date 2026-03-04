@@ -853,7 +853,7 @@ async function carregarDoServidor() {
     setTimeout(() => {
       uploadScreen.style.display = 'none';
       document.getElementById('dashWrapper').style.display = 'block';
-      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoAZ3);
+      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBA3);
       // Mostra data da última atualização
       if (data.updatedAt) {
         const d = new Date(data.updatedAt);
