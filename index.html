@@ -375,7 +375,6 @@ function calcKpis(rows, totalMedidoBA3){
 
   const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
 
-  // Usa valor direto da célula BA3 se disponível
   const totalMedidoFinal = (totalMedidoBA3 && totalMedidoBA3 > 0) ? totalMedidoBA3 : totalMedido;
   return {statusCounts, totalMedido: totalMedidoFinal, pago100, pagCount:pagRows.length, faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
 }
@@ -680,33 +679,6 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
-  const barCard=card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
-  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
-  resps.byCount.forEach(([n,c],i)=>{
-    const div=document.createElement('div');div.className='bar-item';
-    div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
-    div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
-    div.addEventListener('mousemove',moveTip);div.addEventListener('mouseleave',hideTip);
-    document.getElementById('barResp').appendChild(div);
-  });
-
-  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
-  card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
-  charts.push(new Chart(document.getElementById('chartValor'),{
-    type:'bar',
-    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
-    options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
-  }));
-
-  // ── ROW 4c: LEGENDA SERVIÇOS ──
-  card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
-  servs.labels.forEach((lbl,i)=>{
-    const d=document.createElement('div');d.className='srv-card';
-    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
-    document.getElementById('srvGrid').appendChild(d);
-  });
-
   // ── ROW 5: FUNIL ──
   let setorAtivo=null;
   const funilCard=card('c12',0,`
@@ -812,6 +784,33 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     detail.style.display='block';
     setTimeout(()=>detail.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
   };
+  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
+  const barCard=card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
+  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
+  resps.byCount.forEach(([n,c],i)=>{
+    const div=document.createElement('div');div.className='bar-item';
+    div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
+    div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
+    div.addEventListener('mousemove',moveTip);div.addEventListener('mouseleave',hideTip);
+    document.getElementById('barResp').appendChild(div);
+  });
+
+  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
+  card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
+  charts.push(new Chart(document.getElementById('chartValor'),{
+    type:'bar',
+    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
+    options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
+  }));
+
+  // ── ROW 4c: LEGENDA SERVIÇOS ──
+  card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
+  servs.labels.forEach((lbl,i)=>{
+    const d=document.createElement('div');d.className='srv-card';
+    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
+    document.getElementById('srvGrid').appendChild(d);
+  });
+
 }
 
 
