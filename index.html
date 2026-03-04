@@ -890,13 +890,13 @@ function processFile(file) {
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // AZ3
-      const cellAZ3 = ws['AZ3'];
+      // BA3
+      const cellAZ3 = ws['BA3'];
       let totalMedidoAZ3 = null;
       if (cellAZ3) {
-        if (typeof cellAZ3.v === 'number' && cellAZ3.v > 0) {
-          totalMedidoAZ3 = cellAZ3.v;
-        } else if (cellAZ3.w) {
+        if (typeof cellAZ3.v === 'number' && cellBA3.v > 0) {
+          totalMedidoAZ3 = cellBA3.v;
+        } else if (cellBA3.w) {
           const p = parseFloat(String(cellAZ3.w).replace(/[^0-9,.-]/g,'').replace(',','.'));
           if (!isNaN(p) && p > 0) totalMedidoAZ3 = p;
         }
