@@ -134,7 +134,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .week-total td{font-family:'Syne',sans-serif;font-weight:700;color:#00d4ff;background:rgba(0,212,255,.04);border-top:2px solid rgba(0,212,255,.25)!important;}
 
 /* ── FUNIL ── */
-.funil-kpi{background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:8px;padding:10px 14px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;}
+.funil-kpi{background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;}
 .funil-kpi:hover{transform:translateY(-2px);}
 .funil-kpi.active{border-color:var(--bc,#00d4ff);box-shadow:0 0 0 1px var(--bc,#00d4ff);}
 .os-item{display:grid;grid-template-columns:auto 1fr;gap:10px;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:7px;margin-bottom:7px;transition:border-color .2s;}
@@ -150,28 +150,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 .card{animation:fadeIn .3s ease both;}
 
-
-/* ── UPLOAD SCREEN ── */
-#uploadScreen{position:fixed;inset:0;z-index:999;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
-.up-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:28px;} .up-logo span{color:#00d4ff;}
-.up-sub{font-size:12px;color:var(--muted);letter-spacing:1px;}
-.drop-zone{width:480px;border:2px dashed rgba(0,212,255,.3);border-radius:16px;padding:48px 32px;text-align:center;cursor:pointer;transition:all .2s;background:rgba(0,212,255,.03);}
-.drop-zone:hover,.drop-zone.drag{border-color:#00d4ff;background:rgba(0,212,255,.07);}
-.drop-icon{font-size:48px;margin-bottom:12px;}
-.drop-title{font-family:'Syne',sans-serif;font-weight:700;font-size:16px;color:var(--text);margin-bottom:6px;}
-.drop-hint{font-size:11px;color:var(--muted);line-height:1.6;}
-.drop-hint b{color:#00d4ff;}
-.btn-sel{display:inline-block;margin-top:18px;padding:10px 28px;background:#00d4ff;color:#0a0d14;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:filter .2s;}
-.btn-sel:hover{filter:brightness(1.15);}
-#fileInput{display:none;}
-#loadMsg{font-size:12px;color:#00d4ff;display:none;font-family:'Syne',sans-serif;font-weight:700;}
-.prog-bar{width:480px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none;}
-.prog-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .4s ease;}
-/* ── LOADING (processando) ── */
-#loading{position:fixed;inset:0;z-index:998;background:var(--bg);display:none;flex-direction:column;align-items:center;justify-content:center;gap:24px;}
-.ld-msg{font-size:12px;color:#00d4ff;font-family:'Syne',sans-serif;font-weight:700;}
-.ld-bar{width:380px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;}
-.ld-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .5s ease;}
 #loadError{color:#ff4757;font-size:12px;display:none;max-width:420px;text-align:center;}
 </style>
 </head>
@@ -192,11 +170,6 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
   <div class="prog-bar" id="progBar"><div class="prog-fill" id="progFill"></div></div>
   <div id="loadError"></div>
 </div>
-<!-- ══ LOADING (processando) ══ -->
-<div id="loading" style="display:none;">
-  <div class="ld-msg" id="ldMsg">⚙️ Carregando...</div>
-  <div class="ld-bar"><div class="ld-fill" id="ldFill"></div></div>
-</div>
 
 <!-- ══ DASHBOARD ══ -->
 <div id="dashWrapper" style="display:none;">
@@ -212,9 +185,12 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <!-- TOOLTIP -->
-<div class="tip" id="tip" style="display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid rgba(0,212,255,.4);border-radius:9px;padding:14px 16px;font-size:11px;min-width:200px;max-width:280px;box-shadow:0 8px 36px rgba(0,212,255,.2);pointer-events:none;">
+<div id="tip" style="display:none;position:fixed;z-index:9999;background:var(--surface);border:1px solid rgba(0,212,255,.4);border-radius:9px;padding:14px 16px;font-size:11px;min-width:200px;max-width:280px;box-shadow:0 8px 36px rgba(0,212,255,.2);pointer-events:none;">
   <h4 id="tipTitle" style="font-family:'Syne',sans-serif;font-size:12px;font-weight:700;color:#00d4ff;margin-bottom:9px;padding-bottom:7px;border-bottom:1px solid var(--border);">—</h4>
   <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--muted);font-size:10px;">OSs</span><span id="tipOs" style="font-weight:600;font-size:11px;">—</span></div>
+  <div style="display:flex;justify-content:space-between;margin-bottom:4px;"><span style="color:var(--muted);font-size:10px;">Valor</span><span id="tipVal" style="font-weight:600;font-size:11px;color:#22d47a;">—</span></div>
+  <div style="display:flex;justify-content:space-between;"><span style="color:var(--muted);font-size:10px;">Info</span><span id="tipInfo" style="font-size:10px;color:var(--muted);">—</span></div>
+</div>
 
 <script>
 
@@ -230,7 +206,7 @@ const EXCL_PAG    = new Set(['NÃO PAGO','NOVO FLUXO','NÃO PASSÍVEL DE MEDIÇ�
 const SKIP_DATE   = new Set(['FINALIZADO','N/A CAD.','N/A TOP.','N/A AVL.','CANCELADA',
   'AGUARD. ANÁLISE','AGUAR. CAMPO','AGUAR. ANÁLISE','CAMPO TOP.','DEMANDADO','PENDENTE',
   'RETORNO FINALIZADO','N/A CAD','N/A TOP','N/A AVL','']);
-const SRV_DESC    = {
+const SRV_DESC = {
   'C - A - T':'Cadastro + Avaliação + Topografia',
   'C - A':'Cadastro + Avaliação',
   'C':'Cadastro',
@@ -243,6 +219,15 @@ const SRV_COR = {
   'C - A - T':C.blue,'C - A':C.teal,'C':C.yellow,
   'A':C.orange,'C - T':C.purple,'T':C.muted,'A - T':C.red
 };
+
+// ── MAPEAMENTO DE COLUNAS (resolve nomes antigos e novos) ──
+// Permite que o código funcione mesmo se colunas forem renomeadas
+function colVal(row, ...keys) {
+  for (const k of keys) {
+    if (row[k] !== undefined && row[k] !== null) return row[k];
+  }
+  return null;
+}
 
 function fmtBRL(v){
   v = parseFloat(v)||0;
@@ -258,7 +243,6 @@ function isDateVal(v){
   if(v==null||v===''||v===undefined) return false;
   const s = String(v).trim().toUpperCase();
   if(SKIP_DATE.has(s)) return false;
-  // testa se é número serial Excel ou string de data
   if(typeof v === 'number') return true;
   return /\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}/.test(String(v));
 }
@@ -270,7 +254,6 @@ function isFim(v, tipos){
 function fmtDate(v){
   if(v==null||v===''||v===undefined) return '—';
   if(typeof v === 'number'){
-    // serial Excel -> JS Date
     const d = new Date(Math.round((v - 25569)*86400*1000));
     const dd = String(d.getUTCDate()).padStart(2,'0');
     const mm = String(d.getUTCMonth()+1).padStart(2,'0');
@@ -278,7 +261,6 @@ function fmtDate(v){
     return `${dd}/${mm}/${yy}`;
   }
   const s = String(v).trim();
-  // já é string de data? converte
   const d = new Date(s);
   if(!isNaN(d.getTime())){
     const dd=String(d.getDate()).padStart(2,'0');
@@ -305,46 +287,35 @@ function moveTip(e){
 function hideTip(){tip.style.display='none';}
 
 // ══════════════════════════════════════════════════
-//  UPLOAD / DROP
-// ══════════════════════════════════════════════════
-
-
-
-function setProgress(pct){
-  document.getElementById('progBar').style.display='block';
-  document.getElementById('progFill').style.width=pct+'%';
-}
-function showError(msg){
-  const el=document.getElementById('loadError');
-  el.style.display='block'; el.textContent='❌ '+msg;
-  document.getElementById('loadMsg').style.display='none';
-  document.getElementById('progBar').style.display='none';
-}
-
-
-
-// ══════════════════════════════════════════════════
 //  PROCESSAR DADOS
 // ══════════════════════════════════════════════════
 function processRows(rows){
-  // normaliza valor
   rows.forEach(r => {
-    // Normaliza STATUS GERAL — remove aspas simples que às vezes aparecem
     const cleanStr = v => String(v||'').trim().replace(/^'+|'+$/g,'').trim();
 
     r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
     r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
-    // SERVIÇOS: mantém os espaços originais (ex: "C - A - T"), só remove espaços extras
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
-    r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
-    r._am     = r['PREV. ANÁLISE DOCUMENTAL'];
-    r._ap     = r['PREV. TOPOGRAFIA'];
-    r._av     = r['PREV. AVALIAÇÃO'];
-    r._os     = String(r['OS']||'').trim();
-    r._emp    = cleanStr(r['EMPREENDEDIMENTO']);
-    r._campo  = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
+
+    // STATUS CAD. CAMPO — mantém nome igual
+    r._al = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
+
+    // PREV. ANÁLISE DOCUMENTAL — igual
+    r._am = r['PREV. ANÁLISE DOCUMENTAL'];
+
+    // PREV. TOPOGRAFIA — igual
+    r._ap = r['PREV. TOPOGRAFIA'];
+
+    // ✅ CORRIGIDO: PREV. AVALIAÇÃO renomeada para PREV. AVALIAÇÃO2
+    r._av = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
+
+    // OS — nome tem espaço na nova planilha, o trim do cleanStr cuida disso
+    r._os  = String(r['OS'] || r['OS '] || '').trim();
+
+    r._emp   = cleanStr(r['EMPREENDEDIMENTO']);
+    r._campo = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
   });
   return rows;
 }
@@ -375,12 +346,15 @@ function calcKpis(rows, totalMedidoBA3){
 
   const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
 
+  // ✅ CORRIGIDO: BA3 agora tem o texto "TOTAL MEDIDO" (cabeçalho),
+  //    o valor real vem de outra aba externa — usa o calculado pelas linhas
   const totalMedidoFinal = (totalMedidoBA3 && totalMedidoBA3 > 0) ? totalMedidoBA3 : totalMedido;
-  return {statusCounts, totalMedido: totalMedidoFinal, pago100, pagCount:pagRows.length, faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
+  return {statusCounts, totalMedido: totalMedidoFinal, pago100, pagCount:pagRows.length,
+          faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
 }
 
 function calcMensal(rows){
-  // coluna DATA DA SOLICITAÇÃO ou DATA DO PEDIDO
+  // Tenta DATA DA SOLICITAÇÃO primeiro, depois DATA DO PEDIDO DE REPACTUAÇÃO
   const col = rows[0]?.['DATA DA SOLICITAÇÃO']!==undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
   const counts = {};
   rows.forEach(r=>{
@@ -435,7 +409,6 @@ function calcSemanal(rows){
   const col='DATA DE ENTREGA';
   const semanas=[];
   const hoje=new Date();
-  // domingo da semana atual
   const dom=new Date(hoje); dom.setDate(dom.getDate()-dom.getDay());
   for(let i=0;i<6;i++){
     const fim=new Date(dom); fim.setDate(dom.getDate()-i*7);
@@ -459,7 +432,6 @@ function calcSemanal(rows){
 function calcFunil(rows){
   const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
 
-  // Campo OK = FINALIZADO, N/A (qualquer variação), RETORNO FINALIZADO, vazio ou null
   const CAMPO_OK = new Set(['FINALIZADO','N/A','N/A CAD.','N/A TOP.','N/A AVL.','N/A CAD','N/A TOP','N/A AVL','RETORNO FINALIZADO']);
   const base8    = baseAll.filter(r => CAMPO_OK.has(r._al) || r['STATUS CAD. CAMPO'] == null || r._al === '');
   const campoPend= baseAll.filter(r => !base8.includes(r));
@@ -512,7 +484,6 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
 
-  // ── helper: criar card ──
   function card(colClass, minH, innerHTML){
     const d=document.createElement('div');
     d.className=`card ${colClass}`;
@@ -533,10 +504,10 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       ${note?`<div class="kpi-note">${note}</div>`:''}
     `);
   }
-  kpiCard('c3',C.blue, 'Total Medido',  fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','excl. NP · Vazio · NF · NPM');
-  kpiCard('c3',C.green,'Pago 100%',     fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
+  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','excl. NP · Vazio · NF · NPM');
+  kpiCard('c3',C.green, 'Pago 100%',    fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
   kpiCard('c3',C.yellow,'Falta 60%',    fmtShort(kpis.faltaVal),    fmtBRL(kpis.faltaVal),    `${kpis.faltaCount} OSs · saldo restante`,`${fmtBRL(kpis.faltaBruto)} × 0,6`);
-  kpiCard('c3',C.red,  'Não Pago',      fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
+  kpiCard('c3',C.red,   'Não Pago',     fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
 
   // ── ROW 2a: STATUS GERAL ──
   let statusAtivo=null;
@@ -550,7 +521,7 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       <div style="display:flex;align-items:center;gap:4px"><div class="s-num" style="color:${cor}">${n}</div>${arrow}</div>
     </div>`;
   }
-  const statusCard = card('c3',280,`
+  card('c3',280,`
     <div class="card-title">Status Geral das OSs</div>
     <div class="status-grid">
       ${pillHtml('VALIDADA','Validada','#22d47a','pill-v')}
@@ -564,7 +535,6 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     <div class="detail-panel" id="statusPanel"></div>
   `);
 
-  // status detail toggle
   window.toggleStatus = function(key, pillEl){
     const panel=document.getElementById('statusPanel');
     const d=stDet[key]||[];
@@ -587,7 +557,7 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
   };
 
   // ── ROW 2b: PAGAMENTO ──
-  const pagCard = card('c4',280,`
+  card('c4',280,`
     <div class="card-title">Situação de Pagamento</div>
     <table class="pay-table"><tbody>
       <tr><td>Pago 100%</td><td><span class="badge bg">OK</span></td><td style="color:#22d47a">${fmtBRL(kpis.pago100)}</td></tr>
@@ -614,7 +584,6 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     data:{labels:mensal.labels,datasets:[{data:mensal.values,borderColor:C.blue,backgroundColor:'rgba(0,212,255,0.07)',borderWidth:2,pointBackgroundColor:C.blue,pointRadius:3,pointHoverRadius:6,fill:true,tension:.4}]},
     options:{...CO,scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},maxRotation:30},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9}},grid:{color:'#1e2840'},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
-  // monthly mini table
   const mTotal=mensal.values.reduce((a,b)=>a+b,0);
   const maxM=Math.max(...mensal.values);
   const mBody=document.getElementById('monthBody');
@@ -662,7 +631,6 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       <td><span class="week-val">${fmtBRL(row.val)}</span></td>`;
     tr.addEventListener('mouseenter',e=>showTip(e,`${row.ini} → ${row.fim}`,`${row.os} OSs`,fmtBRL(row.val),`${row.prop} propriedades`));
     tr.addEventListener('mousemove',moveTip);tr.addEventListener('mouseleave',hideTip);
-    tr.addEventListener('click',()=>tr.classList.toggle('active-row'));
     wBody.appendChild(tr);
   });
   if(seman.length){
@@ -682,9 +650,36 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
+  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
+  card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
+  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
+  resps.byCount.forEach(([n,c],i)=>{
+    const div=document.createElement('div');div.className='bar-item';
+    div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
+    div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
+    div.addEventListener('mousemove',moveTip);div.addEventListener('mouseleave',hideTip);
+    document.getElementById('barResp').appendChild(div);
+  });
+
+  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
+  card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
+  charts.push(new Chart(document.getElementById('chartValor'),{
+    type:'bar',
+    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
+    options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
+  }));
+
+  // ── ROW 4c: LEGENDA SERVIÇOS ──
+  card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
+  servs.labels.forEach((lbl,i)=>{
+    const d=document.createElement('div');d.className='srv-card';
+    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
+    document.getElementById('srvGrid').appendChild(d);
+  });
+
   // ── ROW 5: FUNIL ──
   let setorAtivo=null;
-  const funilCard=card('c12',0,`
+  card('c12',0,`
     <div class="card-title">Funil de Setores — OSs em Andamento</div>
     <div style="display:grid;grid-template-columns:80px 16px 1fr 16px 1fr 16px 1fr 16px 1fr;align-items:center;gap:8px;margin-bottom:16px;">
       <div style="background:rgba(0,212,255,.04);border:1px solid rgba(0,212,255,.15);border-radius:8px;padding:10px;text-align:center;cursor:pointer;" onclick="toggleSetor('total')">
@@ -695,7 +690,7 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       <div style="background:rgba(0,212,255,.06);border:1px solid rgba(0,212,255,.2);border-radius:8px;padding:8px 12px;text-align:center;cursor:pointer;" onclick="toggleSetor('base')">
         <div style="font-size:8px;color:#00d4ff;text-transform:uppercase;margin-bottom:3px;">🏗️ Campo Finalizado / N/A</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#00d4ff;">${funil.base8.length}</div>
-        <div style="font-size:9px;color:var(--muted);margin-top:2px;">STATUS CAD. CAMPO (AL)</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">STATUS CAD. CAMPO</div>
       </div>
       <div style="text-align:center;font-size:16px;color:rgba(0,212,255,.25)">→</div>
       <div class="funil-kpi" style="--bc:#00d4ff;" onclick="toggleSetor('cad')">
@@ -713,7 +708,7 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       <div class="funil-kpi" style="--bc:#ff6b35;" onclick="toggleSetor('avl')">
         <div style="font-size:8px;color:#ff6b35;text-transform:uppercase;margin-bottom:3px;">⚖️ AVALIAÇÃO</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#ff6b35;">${funil.avl.length}</div>
-        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD.+TOP. ok · data em PREV. AVL.</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD.+TOP. ok · PREV. AVALIAÇÃO2</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 12px;background:rgba(34,212,122,.04);border:1px solid rgba(34,212,122,.15);border-radius:7px;cursor:pointer;" onclick="toggleSetor('concluida')">
@@ -737,13 +732,13 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
   `);
 
   const funilGroups={
-    total:    {label:'🔵 TODAS EM ANDAMENTO',  color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'STATUS GERAL = EM ANDAMENTO',                oss:funil.all},
-    base:     {label:'🏗️ CAMPO OK / N/A',      color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'AL = FINALIZADO ou vazio',                   oss:funil.base8},
-    cad:      {label:'📋 CAD.',                color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'PREV. CAD. tem data',                         oss:funil.cad},
-    top:      {label:'🗺️ TOPOGRAFIA',          color:'#7fff6b',bg:'rgba(127,255,107,.05)',border:'rgba(127,255,107,.22)',filtro:'CAD. ok · PREV. TOP. tem data',              oss:funil.top},
-    avl:      {label:'⚖️ AVALIAÇÃO',           color:'#ff6b35',bg:'rgba(255,107,53,.05)', border:'rgba(255,107,53,.22)', filtro:'CAD.+TOP. ok · PREV. AVL. tem data',        oss:funil.avl},
-    concluida:{label:'✅ CONCLUÍDA',           color:'#22d47a',bg:'rgba(34,212,122,.05)', border:'rgba(34,212,122,.2)',  filtro:'Todas etapas FINALIZADO',                    oss:funil.concluida},
-    campoPend:{label:'⏳ AGUARDANDO CAMPO',    color:'#ffd166',bg:'rgba(255,209,102,.05)',border:'rgba(255,209,102,.25)',filtro:'AL = DEMANDADO ou PENDENTE',                  oss:funil.campoPend},
+    total:    {label:'🔵 TODAS EM ANDAMENTO',  color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'STATUS GERAL = EM ANDAMENTO',               oss:funil.all},
+    base:     {label:'🏗️ CAMPO OK / N/A',      color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'AL = FINALIZADO ou vazio',                  oss:funil.base8},
+    cad:      {label:'📋 CAD.',                color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'PREV. CAD. tem data',                        oss:funil.cad},
+    top:      {label:'🗺️ TOPOGRAFIA',          color:'#7fff6b',bg:'rgba(127,255,107,.05)',border:'rgba(127,255,107,.22)',filtro:'CAD. ok · PREV. TOP. tem data',             oss:funil.top},
+    avl:      {label:'⚖️ AVALIAÇÃO',           color:'#ff6b35',bg:'rgba(255,107,53,.05)', border:'rgba(255,107,53,.22)', filtro:'CAD.+TOP. ok · PREV. AVALIAÇÃO2 tem data', oss:funil.avl},
+    concluida:{label:'✅ CONCLUÍDA',           color:'#22d47a',bg:'rgba(34,212,122,.05)', border:'rgba(34,212,122,.2)',  filtro:'Todas etapas FINALIZADO',                   oss:funil.concluida},
+    campoPend:{label:'⏳ AGUARDANDO CAMPO',    color:'#ffd166',bg:'rgba(255,209,102,.05)',border:'rgba(255,209,102,.25)',filtro:'AL = DEMANDADO ou PENDENTE',                 oss:funil.campoPend},
   };
 
   window.toggleSetor=function(key){
@@ -787,38 +782,10 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
     detail.style.display='block';
     setTimeout(()=>detail.scrollIntoView({behavior:'smooth',block:'nearest'}),50);
   };
-  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
-  const barCard=card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
-  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
-  resps.byCount.forEach(([n,c],i)=>{
-    const div=document.createElement('div');div.className='bar-item';
-    div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
-    div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
-    div.addEventListener('mousemove',moveTip);div.addEventListener('mouseleave',hideTip);
-    document.getElementById('barResp').appendChild(div);
-  });
-
-  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
-  card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
-  charts.push(new Chart(document.getElementById('chartValor'),{
-    type:'bar',
-    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
-    options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
-  }));
-
-  // ── ROW 4c: LEGENDA SERVIÇOS ──
-  card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
-  servs.labels.forEach((lbl,i)=>{
-    const d=document.createElement('div');d.className='srv-card';
-    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
-    document.getElementById('srvGrid').appendChild(d);
-  });
-
 }
 
-
 // ══════════════════════════════════════════════════
-//  UPLOAD + KV STORAGE
+//  UPLOAD / DROP
 // ══════════════════════════════════════════════════
 function trocarArquivo() {
   document.getElementById('dashWrapper').style.display = 'none';
@@ -832,7 +799,6 @@ async function carregarDoServidor() {
   const loadMsg   = document.getElementById('loadMsg');
   const progBar   = document.getElementById('progBar');
   const progFill  = document.getElementById('progFill');
-  const loadError = document.getElementById('loadError');
   const uploadScreen = document.getElementById('uploadScreen');
 
   loadMsg.style.display = 'block';
@@ -843,7 +809,6 @@ async function carregarDoServidor() {
   try {
     const res = await fetch('/api/carregar');
     if (res.status === 404) {
-      // Nenhum dado salvo — mostra tela de upload normalmente
       loadMsg.style.display = 'none';
       progBar.style.display = 'none';
       return;
@@ -858,7 +823,6 @@ async function carregarDoServidor() {
       uploadScreen.style.display = 'none';
       document.getElementById('dashWrapper').style.display = 'block';
       buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBA3);
-      // Mostra data da última atualização
       if (data.updatedAt) {
         const d = new Date(data.updatedAt);
         const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
@@ -869,7 +833,7 @@ async function carregarDoServidor() {
   } catch(err) {
     loadMsg.style.display = 'none';
     progBar.style.display = 'none';
-    console.warn('Sem dados no servidor, pedindo upload:', err.message);
+    console.warn('Sem dados no servidor:', err.message);
   }
 }
 
@@ -891,29 +855,32 @@ function processFile(file) {
       progFill.style.width = '50%';
       const buffer = e.target.result;
       const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
+
+      // Procura aba "Resumo" (case insensitive)
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // BA3
-      const cellBA3 = ws['BA3'];
+      // ✅ CORRIGIDO: BA3 agora contém o cabeçalho "TOTAL MEDIDO", não o valor
+      // O valor real vem de planilha externa vinculada — será calculado pelas linhas
       let totalMedidoBA3 = null;
-      if (cellBA3) {
-        if (typeof cellBA3.v === 'number' && cellBA3.v > 0) {
-          totalMedidoBA3 = cellBA3.v;
-        } else if (cellBA3.w) {
-          const p = parseFloat(String(cellBA3.w).replace(/[^0-9,.-]/g,'').replace(',','.'));
-          if (!isNaN(p) && p > 0) totalMedidoBA3 = p;
-        }
+      const cellBB3 = ws['BB3'];
+      if (cellBB3 && typeof cellBB3.v === 'number' && cellBB3.v > 0) {
+        totalMedidoBA3 = cellBB3.v;
       }
 
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+
+      // Procura linha de cabeçalho (contém coluna 'OS')
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
-        if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS')) {
+        if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS' || String(v).trim() === 'OS ')) {
           headerRowIdx = i; break;
         }
       }
+
+      // Normaliza headers: remove espaços extras
       const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
+
       const rows = [];
       for (let i = headerRowIdx + 1; i < raw.length; i++) {
         const arr = raw[i] || [];
@@ -928,7 +895,7 @@ function processFile(file) {
 
       progFill.style.width = '100%';
 
-      // Salva no servidor para todos verem
+      // Tenta salvar no servidor
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
         await fetch('/api/salvar', {
@@ -942,7 +909,6 @@ function processFile(file) {
         document.getElementById('uploadScreen').style.display = 'none';
         document.getElementById('dashWrapper').style.display = 'block';
         buildDashboard(rows, file.name, totalMedidoBA3);
-        document.getElementById('tbRight').textContent = 'Atualizado agora';
       }, 300);
 
     } catch(err) {
@@ -955,9 +921,7 @@ function processFile(file) {
   reader.readAsArrayBuffer(file);
 }
 
-// Event listeners upload
 window.addEventListener('DOMContentLoaded', () => {
-  // Tenta carregar dados já salvos primeiro
   carregarDoServidor();
 
   const fileInput = document.getElementById('fileInput');
@@ -970,10 +934,6 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.dataTransfer.files[0]) processFile(e.dataTransfer.files[0]);
   });
 });
-
-function downloadDashboard() {
-  alert('Na versão online o download não está disponível.\nAcesse o link do dashboard direto pelo navegador.');
-}
 </script>
 </body>
 </html>
