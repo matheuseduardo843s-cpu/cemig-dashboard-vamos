@@ -201,7 +201,6 @@ const C = {blue:'#00d4ff',green:'#22d47a',teal:'#7fff6b',yellow:'#ffd166',red:'#
 const PALETTE = [C.blue,C.teal,C.yellow,C.orange,C.purple,C.green,C.red,C.muted];
 const CO = {plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Mono',size:10},boxWidth:9,padding:10}},tooltip:{backgroundColor:'#111520',borderColor:'#1e2840',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#6b7a99',titleFont:{family:'Syne',weight:'700'}}}};
 
-const EXCL_STATUS = new Set(['CANCELADA','EM ANDAMENTO','PARALISADA']);
 const EXCL_PAG    = new Set(['NÃO PAGO','NOVO FLUXO','NÃO PASSÍVEL DE MEDIÇÃO','NAO PAGO','NAO PASSIVEL DE MEDICAO']);
 const SKIP_DATE   = new Set(['FINALIZADO','N/A CAD.','N/A TOP.','N/A AVL.','CANCELADA',
   'AGUARD. ANÁLISE','AGUAR. CAMPO','AGUAR. ANÁLISE','CAMPO TOP.','DEMANDADO','PENDENTE',
@@ -220,8 +219,6 @@ const SRV_COR = {
   'A':C.orange,'C - T':C.purple,'T':C.muted,'A - T':C.red
 };
 
-// ── MAPEAMENTO DE COLUNAS (resolve nomes antigos e novos) ──
-// Permite que o código funcione mesmo se colunas forem renomeadas
 function colVal(row, ...keys) {
   for (const k of keys) {
     if (row[k] !== undefined && row[k] !== null) return row[k];
@@ -298,41 +295,27 @@ function processRows(rows){
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
-
-    // STATUS CAD. CAMPO — mantém nome igual
-    r._al = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
-
-    // PREV. ANÁLISE DOCUMENTAL — igual
-    r._am = r['PREV. ANÁLISE DOCUMENTAL'];
-
-    // PREV. TOPOGRAFIA — igual
-    r._ap = r['PREV. TOPOGRAFIA'];
-
-    // ✅ CORRIGIDO: PREV. AVALIAÇÃO renomeada para PREV. AVALIAÇÃO2
-    r._av = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
-
-    // OS — nome tem espaço na nova planilha, o trim do cleanStr cuida disso
-    r._os  = String(r['OS'] || r['OS '] || '').trim();
-
-    r._emp   = cleanStr(r['EMPREENDEDIMENTO']);
-    r._campo = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
+    r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
+    r._am     = r['PREV. ANÁLISE DOCUMENTAL'];
+    r._ap     = r['PREV. TOPOGRAFIA'];
+    r._av     = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
+    r._os     = String(r['OS'] || r['OS '] || '').trim();
+    r._emp    = cleanStr(r['EMPREENDIMENTO']);
+    r._campo  = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
   });
   return rows;
 }
 
-function calcKpis(rows, totalMedidoBA3){
+// ── KPIS — totalMedido vem EXCLUSIVAMENTE de BB3 (lido no processFile) ──
+function calcKpis(rows, totalMedidoBB3){
   const statusCounts = {};
   rows.forEach(r => {
     const s = r._status;
     if(s) statusCounts[s] = (statusCounts[s]||0)+1;
   });
 
-  const totalMedido = rows
-    .filter(r => !EXCL_STATUS.has(r._status) && !EXCL_PAG.has(r._pag) && r._pag !== '')
-    .reduce((s,r)=>s+r._valor,0);
-
-  const pagRows   = rows.filter(r => r._pag === 'PAGO 100%');
-  const pago100   = pagRows.reduce((s,r)=>s+r._valor,0);
+  const pagRows  = rows.filter(r => r._pag === 'PAGO 100%');
+  const pago100  = pagRows.reduce((s,r)=>s+r._valor,0);
 
   const faltaRows  = rows.filter(r => r._pag === 'FALTA 60%');
   const faltaBruto = faltaRows.reduce((s,r)=>s+r._valor,0);
@@ -340,21 +323,23 @@ function calcKpis(rows, totalMedidoBA3){
 
   const npRows = rows.filter(r =>
     (r._pag === 'NÃO PAGO' || r['SITUAÇÃO PAGAMENTO']==null || r._pag === '') &&
-    !EXCL_STATUS.has(r._status)
+    !['CANCELADA','EM ANDAMENTO','PARALISADA'].includes(r._status)
   );
   const naPago = npRows.reduce((s,r)=>s+r._valor,0);
 
   const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
 
-  // ✅ CORRIGIDO: BA3 agora tem o texto "TOTAL MEDIDO" (cabeçalho),
-  //    o valor real vem de outra aba externa — usa o calculado pelas linhas
-  const totalMedidoFinal = (totalMedidoBA3 && totalMedidoBA3 > 0) ? totalMedidoBA3 : totalMedido;
-  return {statusCounts, totalMedido: totalMedidoFinal, pago100, pagCount:pagRows.length,
-          faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
+  return {
+    statusCounts,
+    totalMedido: totalMedidoBB3,   // ← único ponto de entrada, sempre BB3
+    pago100, pagCount: pagRows.length,
+    faltaVal, faltaBruto, faltaCount: faltaRows.length,
+    naPago, npCount: npRows.length,
+    multaVal
+  };
 }
 
 function calcMensal(rows){
-  // Tenta DATA DA SOLICITAÇÃO primeiro, depois DATA DO PEDIDO DE REPACTUAÇÃO
   const col = rows[0]?.['DATA DA SOLICITAÇÃO']!==undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
   const counts = {};
   rows.forEach(r=>{
@@ -431,7 +416,6 @@ function calcSemanal(rows){
 
 function calcFunil(rows){
   const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
-
   const CAMPO_OK = new Set(['FINALIZADO','N/A','N/A CAD.','N/A TOP.','N/A AVL.','N/A CAD','N/A TOP','N/A AVL','RETORNO FINALIZADO']);
   const base8    = baseAll.filter(r => CAMPO_OK.has(r._al) || r['STATUS CAD. CAMPO'] == null || r._al === '');
   const campoPend= baseAll.filter(r => !base8.includes(r));
@@ -467,10 +451,10 @@ function calcStatusDetail(rows){
 let charts=[];
 function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
 
-function buildDashboard(rawRows, filename, totalMedidoBA3){
+function buildDashboard(rawRows, filename, totalMedidoBB3){
   destroyCharts();
   const rows   = processRows(rawRows);
-  const kpis   = calcKpis(rows, totalMedidoBA3);
+  const kpis   = calcKpis(rows, totalMedidoBB3);
   const mensal = calcMensal(rows);
   const servs  = calcServicos(rows);
   const resps  = calcResponsaveis(rows);
@@ -504,7 +488,7 @@ function buildDashboard(rawRows, filename, totalMedidoBA3){
       ${note?`<div class="kpi-note">${note}</div>`:''}
     `);
   }
-  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','excl. NP · Vazio · NF · NPM');
+  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor lido da célula BB3','planilha Resumo · BB3');
   kpiCard('c3',C.green, 'Pago 100%',    fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
   kpiCard('c3',C.yellow,'Falta 60%',    fmtShort(kpis.faltaVal),    fmtBRL(kpis.faltaVal),    `${kpis.faltaCount} OSs · saldo restante`,`${fmtBRL(kpis.faltaBruto)} × 0,6`);
   kpiCard('c3',C.red,   'Não Pago',     fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
@@ -796,9 +780,9 @@ function trocarArquivo() {
 }
 
 async function carregarDoServidor() {
-  const loadMsg   = document.getElementById('loadMsg');
-  const progBar   = document.getElementById('progBar');
-  const progFill  = document.getElementById('progFill');
+  const loadMsg      = document.getElementById('loadMsg');
+  const progBar      = document.getElementById('progBar');
+  const progFill     = document.getElementById('progFill');
   const uploadScreen = document.getElementById('uploadScreen');
 
   loadMsg.style.display = 'block';
@@ -808,11 +792,7 @@ async function carregarDoServidor() {
 
   try {
     const res = await fetch('/api/carregar');
-    if (res.status === 404) {
-      loadMsg.style.display = 'none';
-      progBar.style.display = 'none';
-      return;
-    }
+    if (res.status === 404) { loadMsg.style.display='none'; progBar.style.display='none'; return; }
     if (!res.ok) throw new Error('Erro ao carregar dados');
 
     progFill.style.width = '80%';
@@ -822,10 +802,10 @@ async function carregarDoServidor() {
     setTimeout(() => {
       uploadScreen.style.display = 'none';
       document.getElementById('dashWrapper').style.display = 'block';
-      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBA3);
+      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBB3);
       if (data.updatedAt) {
         const d = new Date(data.updatedAt);
-        const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
+        const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
         document.getElementById('tbRight').textContent = 'Atualizado: ' + fmt;
       }
     }, 200);
@@ -838,10 +818,10 @@ async function carregarDoServidor() {
 }
 
 function processFile(file) {
-  const progFill = document.getElementById('progFill');
-  const progBar  = document.getElementById('progBar');
-  const loadMsg  = document.getElementById('loadMsg');
-  const loadError= document.getElementById('loadError');
+  const progFill  = document.getElementById('progFill');
+  const progBar   = document.getElementById('progBar');
+  const loadMsg   = document.getElementById('loadMsg');
+  const loadError = document.getElementById('loadError');
 
   loadMsg.style.display = 'block';
   loadMsg.textContent = '⚙️ Lendo arquivo...';
@@ -860,12 +840,12 @@ function processFile(file) {
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // ✅ CORRIGIDO: BA3 agora contém o cabeçalho "TOTAL MEDIDO", não o valor
-      // O valor real vem de planilha externa vinculada — será calculado pelas linhas
-      let totalMedidoBA3 = null;
+      // ── TOTAL MEDIDO: lido EXCLUSIVAMENTE de BB3 ──
+      // BB3 deve conter o valor numérico do total medido
+      let totalMedidoBB3 = 0;
       const cellBB3 = ws['BB3'];
-      if (cellBB3 && typeof cellBB3.v === 'number' && cellBB3.v > 0) {
-        totalMedidoBA3 = cellBB3.v;
+      if (cellBB3 && typeof cellBB3.v === 'number') {
+        totalMedidoBB3 = cellBB3.v;
       }
 
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
@@ -873,7 +853,7 @@ function processFile(file) {
       // Procura linha de cabeçalho (contém coluna 'OS')
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
-        if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS' || String(v).trim() === 'OS ')) {
+        if ((raw[i]||[]).some(v => v != null && (String(v).trim() === 'OS' || String(v).trim() === 'OS '))) {
           headerRowIdx = i; break;
         }
       }
@@ -895,7 +875,7 @@ function processFile(file) {
 
       progFill.style.width = '100%';
 
-      // Tenta salvar no servidor
+      // Tenta salvar no servidor (inclui totalMedidoBB3 para o carregarDoServidor)
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
         await fetch('/api/salvar', {
@@ -908,7 +888,7 @@ function processFile(file) {
       setTimeout(() => {
         document.getElementById('uploadScreen').style.display = 'none';
         document.getElementById('dashWrapper').style.display = 'block';
-        buildDashboard(rows, file.name, totalMedidoBA3);
+        buildDashboard(rows, file.name, totalMedidoBB3);
       }, 300);
 
     } catch(err) {
