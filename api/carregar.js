@@ -10,19 +10,17 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Verifica se o arquivo existe
     if (!fs.existsSync(DATA_FILE)) {
       return res.status(404).json({ error: 'Nenhum dado encontrado' });
     }
     
-    // Lê os dados salvos
     const data = fs.readFileSync(DATA_FILE, 'utf-8');
     const parsedData = JSON.parse(data);
     
-    // Retorna os dados (apenas rows, filename e updatedAt)
     res.status(200).json({
       rows: parsedData.rows || [],
       filename: parsedData.filename || 'planilha.xlsx',
+      totalMedido: parsedData.totalMedido || null,
       updatedAt: parsedData.updatedAt
     });
     
