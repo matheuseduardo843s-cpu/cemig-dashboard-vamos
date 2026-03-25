@@ -1,24 +1,33 @@
 // api/carregar.js
-import { Redis } from '@upstash/redis';
+import fs from 'fs';
+import path from 'path';
 
-const redis = Redis.fromEnv();
+const DATA_FILE = path.join('/tmp', 'planilha_data.json');
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
+  if (req.method !== 'GET') {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
 
   try {
-    const raw = await redis.get('dashboard_data');
-    if (!raw) {
-      res.status(404).json({ error: 'Nenhum dado salvo ainda' });
-      return;
+    // Verifica se o arquivo existe
+    if (!fs.existsSync(DATA_FILE)) {
+      return res.status(404).json({ error: 'Nenhum dado encontrado' });
     }
-    const data = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    res.setHeader('Cache-Control', 'no-cache');
-    res.status(200).json(data);
-  } catch (err) {
-    console.error('Erro /api/carregar:', err);
-    res.status(500).json({ error: err.message });
+    
+    // Lê os dados salvos
+    const data = fs.readFileSync(DATA_FILE, 'utf-8');
+    const parsedData = JSON.parse(data);
+    
+    // Retorna os dados (apenas rows, filename e updatedAt)
+    res.status(200).json({
+      rows: parsedData.rows || [],
+      filename: parsedData.filename || 'planilha.xlsx',
+      updatedAt: parsedData.updatedAt
+    });
+    
+  } catch (error) {
+    console.error('Erro ao carregar:', error);
+    res.status(500).json({ error: 'Erro ao carregar dados: ' + error.message });
   }
 }
