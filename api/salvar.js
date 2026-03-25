@@ -1,47 +1,41 @@
 // api/salvar.js
-import { Redis } from '@upstash/redis';
-import * as XLSX from 'xlsx';
+import fs from 'fs';
+import path from 'path';
 
-export const config = { api: { bodyParser: false } };
-
-const redis = Redis.fromEnv();
+const DATA_FILE = path.join('/tmp', 'planilha_data.json');
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  if (req.method === 'OPTIONS') { res.status(200).end(); return; }
-  if (req.method !== 'POST') { res.status(405).json({ error: 'Method not allowed' }); return; }
+  if (req.method !== 'POST') {
+    return res.status(405).json({ error: 'Método não permitido' });
+  }
 
   try {
-    const chunks = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const buffer = Buffer.concat(chunks);
-
-    const wb = XLSX.read(buffer, { type: 'buffer', cellDates: false, cellFormula: true, cellNF: false });
+    const buffer = req.body;
+    const filename = req.headers['x-filename'] || 'planilha.xlsx';
+    
+    // Salva o arquivo original
+    const filePath = path.join('/tmp', filename);
+    fs.writeFileSync(filePath, Buffer.from(buffer));
+    
+    // Extrai as linhas da planilha (igual ao frontend faz)
+    const XLSX = require('xlsx');
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: false, cellFormula: true });
     const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
     const ws = wb.Sheets[sheetName];
-
-    // Lê célula BA3 diretamente
-    const cellBA3 = ws['BA3'];
-    let totalMedidoBA3 = null;
-    if (cellBA3) {
-      if (typeof cellBA3.v === 'number' && cellBA3.v > 0) {
-        totalMedidoBA3 = cellBA3.v;
-      } else if (cellBA3.w) {
-        const p = parseFloat(String(cellBA3.w).replace(/[^0-9,.-]/g, '').replace(',', '.'));
-        if (!isNaN(p) && p > 0) totalMedidoBA3 = p;
-      }
-    }
-
+    
     const raw = XLSX.utils.sheet_to_json(ws, { header: 1, defval: null, raw: true });
+    
+    // Encontra linha de cabeçalho
     let headerRowIdx = 2;
     for (let i = 0; i < Math.min(10, raw.length); i++) {
       if ((raw[i] || []).some(v => v != null && String(v).trim() === 'OS')) {
-        headerRowIdx = i; break;
+        headerRowIdx = i;
+        break;
       }
     }
-
+    
     const headers = (raw[headerRowIdx] || []).map(h => h == null ? '' : String(h).trim());
+    
     const rows = [];
     for (let i = headerRowIdx + 1; i < raw.length; i++) {
       const arr = raw[i] || [];
@@ -53,20 +47,24 @@ export default async function handler(req, res) {
       if (osStr === '' || osStr === '0' || osStr === 'null') continue;
       rows.push(obj);
     }
-
-    const payload = {
-      rows,
-      totalMedidoBA3,   // ← nome correto agora
-      updatedAt: new Date().toISOString(),
-      filename: req.headers['x-filename'] || 'planilha.xlsx'
+    
+    // Salva os dados processados (SOMENTE rows e filename)
+    const dataToSave = {
+      rows: rows,
+      filename: filename,
+      updatedAt: new Date().toISOString()
     };
-
-    await redis.set('dashboard_data', JSON.stringify(payload), { ex: 60 * 60 * 24 * 30 });
-
-    res.status(200).json({ ok: true, rows: rows.length, totalMedidoBA3, updatedAt: payload.updatedAt });
-
-  } catch (err) {
-    console.error('Erro /api/salvar:', err);
-    res.status(500).json({ error: err.message });
+    
+    fs.writeFileSync(DATA_FILE, JSON.stringify(dataToSave));
+    
+    res.status(200).json({ 
+      success: true, 
+      message: 'Arquivo salvo com sucesso',
+      rowsCount: rows.length 
+    });
+    
+  } catch (error) {
+    console.error('Erro ao salvar:', error);
+    res.status(500).json({ error: 'Erro ao processar arquivo: ' + error.message });
   }
 }
