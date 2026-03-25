@@ -1,6 +1,15 @@
 {
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/$1" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "name": "dashboard-cemig",
+  "version": "1.0.0",
+  "description": "Dashboard CEMIG - Avalicon Engenharia",
+  "scripts": {
+    "dev": "vercel dev",
+    "deploy": "vercel deploy --prod"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@vercel/node": "^3.0.0"
+  }
 }
