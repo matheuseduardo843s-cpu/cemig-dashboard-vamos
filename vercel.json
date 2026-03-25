@@ -1,15 +1,23 @@
 {
-  "name": "dashboard-cemig",
-  "version": "1.0.0",
-  "description": "Dashboard CEMIG - Avalicon Engenharia",
-  "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel deploy --prod"
-  },
-  "dependencies": {
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@vercel/node": "^3.0.0"
-  }
+  "version": 2,
+  "builds": [
+    {
+      "src": "index.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "api/*.js",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    }
+  ]
 }
