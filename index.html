@@ -220,7 +220,6 @@ const SRV_COR = {
   'A':C.orange,'C - T':C.purple,'T':C.muted,'A - T':C.red
 };
 
-// ── MAPEAMENTO DE COLUNAS (resolve nomes antigos e novos) ──
 function colVal(row, ...keys) {
   for (const k of keys) {
     if (row[k] !== undefined && row[k] !== null) return row[k];
@@ -269,7 +268,6 @@ function fmtDate(v){
   return s;
 }
 
-// ── TOOLTIP ──
 const tip = document.getElementById('tip');
 function showTip(e,t,o,val,info){
   document.getElementById('tipTitle').textContent=t;
@@ -298,39 +296,36 @@ function processRows(rows){
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
 
-    // STATUS CAD. CAMPO — mantém nome igual
     r._al = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
-
-    // PREV. ANÁLISE DOCUMENTAL — igual
     r._am = r['PREV. ANÁLISE DOCUMENTAL'];
-
-    // PREV. TOPOGRAFIA — igual
     r._ap = r['PREV. TOPOGRAFIA'];
-
-    // PREV. AVALIAÇÃO
     r._av = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
-
-    // OS
     r._os  = String(r['OS'] || r['OS '] || '').trim();
-
     r._emp   = cleanStr(r['EMPREENDEDIMENTO']);
     r._campo = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
   });
   return rows;
 }
 
-// ✅ CALC KPIS CORRIGIDO: Agora só calcula baseado nas linhas, sem interferência externa
-function calcKpis(rows){
+// ✅ calcKpis agora recebe totalMedidoExterno (valor da célula BB3)
+function calcKpis(rows, totalMedidoExterno = null){
   const statusCounts = {};
   rows.forEach(r => {
     const s = r._status;
     if(s) statusCounts[s] = (statusCounts[s]||0)+1;
   });
 
-  // Total Medido: apenas OSs que NÃO estão excluídas (Cancelada/Andamento/Paralisada) e NÃO são excluídas de pagamento
-  const totalMedido = rows
-    .filter(r => !EXCL_STATUS.has(r._status) && !EXCL_PAG.has(r._pag) && r._pag !== '')
-    .reduce((s,r)=>s+r._valor,0);
+  // Usa o valor externo (BB3) se fornecido, senão calcula pelas linhas
+  let totalMedido;
+  if (totalMedidoExterno !== null && !isNaN(totalMedidoExterno) && totalMedidoExterno > 0) {
+    totalMedido = totalMedidoExterno;
+    console.log('Usando Total Medido da célula BB3:', totalMedido);
+  } else {
+    totalMedido = rows
+      .filter(r => !EXCL_STATUS.has(r._status) && !EXCL_PAG.has(r._pag) && r._pag !== '')
+      .reduce((s,r)=>s+r._valor,0);
+    console.log('Usando Total Medido calculado pelas linhas:', totalMedido);
+  }
 
   const pagRows   = rows.filter(r => r._pag === 'PAGO 100%');
   const pago100   = pagRows.reduce((s,r)=>s+r._valor,0);
@@ -352,7 +347,6 @@ function calcKpis(rows){
 }
 
 function calcMensal(rows){
-  // Tenta DATA DA SOLICITAÇÃO primeiro, depois DATA DO PEDIDO DE REPACTUAÇÃO
   const col = rows[0]?.['DATA DA SOLICITAÇÃO']!==undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
   const counts = {};
   rows.forEach(r=>{
@@ -465,10 +459,10 @@ function calcStatusDetail(rows){
 let charts=[];
 function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
 
-function buildDashboard(rawRows, filename){
+function buildDashboard(rawRows, filename, totalMedidoExterno = null){
   destroyCharts();
   const rows   = processRows(rawRows);
-  const kpis   = calcKpis(rows);  // ✅ Agora só recebe rows, sem parâmetro externo
+  const kpis   = calcKpis(rows, totalMedidoExterno);  // Passa o valor externo se existir
   const mensal = calcMensal(rows);
   const servs  = calcServicos(rows);
   const resps  = calcResponsaveis(rows);
@@ -491,7 +485,6 @@ function buildDashboard(rawRows, filename){
     return d;
   }
 
-  // ── ROW 1: 4 KPIs ──
   function kpiCard(col,acc,lbl,short,full,sub,note){
     card(col,0,`
       <div class="accent-bar" style="background:${acc}"></div>
@@ -502,12 +495,15 @@ function buildDashboard(rawRows, filename){
       ${note?`<div class="kpi-note">${note}</div>`:''}
     `);
   }
-  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','excl. NP · Vazio · NF · NPM');
+  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','');
   kpiCard('c3',C.green, 'Pago 100%',    fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
   kpiCard('c3',C.yellow,'Falta 60%',    fmtShort(kpis.faltaVal),    fmtBRL(kpis.faltaVal),    `${kpis.faltaCount} OSs · saldo restante`,`${fmtBRL(kpis.faltaBruto)} × 0,6`);
   kpiCard('c3',C.red,   'Não Pago',     fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
 
-  // ── ROW 2a: STATUS GERAL ──
+  // Resto do código permanece igual...
+  // (manter todas as funções de cards como estavam)
+  
+  // ── STATUS GERAL ──
   let statusAtivo=null;
   const sc=kpis.statusCounts;
   function pillHtml(key,label,cor,cls,clicavel=false){
@@ -554,7 +550,7 @@ function buildDashboard(rawRows, filename){
     panel.style.display='block';
   };
 
-  // ── ROW 2b: PAGAMENTO ──
+  // ── PAGAMENTO ──
   card('c4',280,`
     <div class="card-title">Situação de Pagamento</div>
     <table class="pay-table"><tbody>
@@ -571,7 +567,7 @@ function buildDashboard(rawRows, filename){
     options:{...CO,cutout:'62%',plugins:{...CO.plugins,legend:{position:'right',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // ── ROW 2c: MENSAL ──
+  // ── MENSAL ──
   card('c5',280,`
     <div class="card-title">OSs Solicitadas por Mês</div>
     <div style="flex:1;position:relative;min-height:130px;"><canvas id="chartMensal"></canvas></div>
@@ -597,7 +593,7 @@ function buildDashboard(rawRows, filename){
   mTr.innerHTML=`<td style="font-family:Syne,sans-serif;font-weight:700;color:#00d4ff;font-size:10px;">TOTAL</td><td><span class="m-num">${mTotal}</span></td><td><span style="font-size:9px;color:var(--muted)">100%</span></td>`;
   mBody.appendChild(mTr);
 
-  // ── ROW 3a: SERVIÇOS ──
+  // ── SERVIÇOS ──
   card('c3',240,`<div class="card-title">Distribuição por Serviço</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartServ"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartServ'),{
     type:'polarArea',
@@ -605,7 +601,7 @@ function buildDashboard(rawRows, filename){
     options:{...CO,scales:{r:{ticks:{display:false},grid:{color:'#1e2840'},pointLabels:{color:'#6b7a99',font:{family:'DM Mono',size:9}}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
-  // ── ROW 3b: ENTREGAS SEMANAIS ──
+  // ── ENTREGAS SEMANAIS ──
   card('c5',240,`
     <div class="card-title">Quantitativo de Entrega Semanal</div>
     <table class="week-table">
@@ -640,7 +636,7 @@ function buildDashboard(rawRows, filename){
     wBody.appendChild(ttr);
   }
 
-  // ── ROW 3c: STATUS CAMPO ──
+  // ── STATUS CAMPO ──
   card('c4',240,`<div class="card-title">Status Campo</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartCampo"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartCampo'),{
     type:'doughnut',
@@ -648,7 +644,7 @@ function buildDashboard(rawRows, filename){
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
+  // ── RESPONSÁVEIS BARRAS ──
   card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
   const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
   resps.byCount.forEach(([n,c],i)=>{
@@ -659,7 +655,7 @@ function buildDashboard(rawRows, filename){
     document.getElementById('barResp').appendChild(div);
   });
 
-  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
+  // ── VALOR POR RESPONSÁVEL ──
   card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartValor'),{
     type:'bar',
@@ -667,7 +663,7 @@ function buildDashboard(rawRows, filename){
     options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
-  // ── ROW 4c: LEGENDA SERVIÇOS ──
+  // ── LEGENDA SERVIÇOS ──
   card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
   servs.labels.forEach((lbl,i)=>{
     const d=document.createElement('div');d.className='srv-card';
@@ -675,7 +671,7 @@ function buildDashboard(rawRows, filename){
     document.getElementById('srvGrid').appendChild(d);
   });
 
-  // ── ROW 5: FUNIL ──
+  // ── FUNIL ──
   let setorAtivo=null;
   card('c12',0,`
     <div class="card-title">Funil de Setores — OSs em Andamento</div>
@@ -820,8 +816,8 @@ async function carregarDoServidor() {
     setTimeout(() => {
       uploadScreen.style.display = 'none';
       document.getElementById('dashWrapper').style.display = 'block';
-      // ✅ Removido totalMedidoBA3, agora só passa rows e filename
-      buildDashboard(data.rows, data.filename || 'planilha.xlsx');
+      // Passa o totalMedido salvo no servidor se existir
+      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedido);
       if (data.updatedAt) {
         const d = new Date(data.updatedAt);
         const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
@@ -855,16 +851,21 @@ function processFile(file) {
       const buffer = e.target.result;
       const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
 
-      // Procura aba "Resumo" (case insensitive)
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // ✅ REMOVIDO: não buscamos mais a célula BB3 para evitar interferência
-      // O Total Medido agora é calculado exclusivamente pelas linhas da planilha
+      // ✅ BUSCA O VALOR DA CÉLULA BB3 (Total Medido)
+      let totalMedidoExterno = null;
+      const cellBB3 = ws['BB3'];
+      if (cellBB3 && typeof cellBB3.v === 'number' && cellBB3.v > 0) {
+        totalMedidoExterno = cellBB3.v;
+        console.log('Valor encontrado na célula BB3:', totalMedidoExterno);
+      } else {
+        console.log('Célula BB3 não encontrada ou valor inválido');
+      }
 
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
 
-      // Procura linha de cabeçalho (contém coluna 'OS')
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
         if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS' || String(v).trim() === 'OS ')) {
@@ -872,7 +873,6 @@ function processFile(file) {
         }
       }
 
-      // Normaliza headers: remove espaços extras
       const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
 
       const rows = [];
@@ -889,21 +889,25 @@ function processFile(file) {
 
       progFill.style.width = '100%';
 
-      // Tenta salvar no servidor
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
+        // Salva no servidor incluindo o totalMedido
         await fetch('/api/salvar', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream', 'x-filename': file.name },
-          body: new Uint8Array(buffer)
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            rows: rows,
+            filename: file.name,
+            totalMedido: totalMedidoExterno,
+            updatedAt: new Date().toISOString()
+          })
         });
       } catch(e) { console.warn('Não salvou no servidor:', e); }
 
       setTimeout(() => {
         document.getElementById('uploadScreen').style.display = 'none';
         document.getElementById('dashWrapper').style.display = 'block';
-        // ✅ Removido totalMedidoBA3, agora só passa rows e filename
-        buildDashboard(rows, file.name);
+        buildDashboard(rows, file.name, totalMedidoExterno);
       }, 300);
 
     } catch(err) {
