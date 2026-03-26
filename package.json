@@ -1,16 +1,9 @@
 {
-  "name": "dashboard-cemig",
+  "name": "cemig-dashboard",
   "version": "1.0.0",
-  "description": "Dashboard CEMIG - Avalicon Engenharia",
-  "scripts": {
-    "dev": "vercel dev",
-    "deploy": "vercel deploy --prod"
-  },
+  "description": "Dashboard CEMIG — Avalicon Engenharia",
   "dependencies": {
-    "@vercel/kv": "^1.0.0",
-    "xlsx": "^0.18.5"
-  },
-  "devDependencies": {
-    "@vercel/node": "^3.0.0"
+    "xlsx": "^0.18.5",
+    "@vercel/kv": "^1.0.0"
   }
 }
