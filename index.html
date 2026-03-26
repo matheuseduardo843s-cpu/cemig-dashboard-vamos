@@ -8,7 +8,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-/* (mantenha todos os estilos iguais ao código anterior) */
+
 :root{--bg:#0a0d14;--surface:#111520;--surface2:#161c2e;--border:#1e2840;--accent:#00d4ff;--text:#e8edf5;--muted:#6b7a99;}
 *{margin:0;padding:0;box-sizing:border-box;}
 body{background:var(--bg);color:var(--text);font-family:'DM Mono',monospace;min-height:100vh;}
@@ -27,6 +27,9 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .btn-sel{display:inline-block;margin-top:18px;padding:10px 28px;background:#00d4ff;color:#0a0d14;border-radius:8px;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:filter .2s;}
 .btn-sel:hover{filter:brightness(1.15);}
 #fileInput{display:none;}
+.up-step{display:flex;align-items:center;gap:10px;font-size:11px;color:var(--muted);}
+.up-step-dot{width:20px;height:20px;border-radius:50%;background:rgba(0,212,255,.15);border:1px solid rgba(0,212,255,.3);display:flex;align-items:center;justify-content:center;font-size:10px;color:#00d4ff;flex-shrink:0;}
+.steps{display:flex;flex-direction:column;gap:8px;margin-top:8px;}
 #loadMsg{font-size:12px;color:#00d4ff;display:none;font-family:'Syne',sans-serif;font-weight:700;}
 .prog-bar{width:480px;height:3px;background:var(--border);border-radius:2px;overflow:hidden;display:none;}
 .prog-fill{height:100%;width:0%;background:#00d4ff;border-radius:2px;transition:width .4s ease;}
@@ -190,6 +193,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 </div>
 
 <script>
+
 // ══════════════════════════════════════════════════
 //  CONSTANTES E HELPERS
 // ══════════════════════════════════════════════════
@@ -197,7 +201,6 @@ const C = {blue:'#00d4ff',green:'#22d47a',teal:'#7fff6b',yellow:'#ffd166',red:'#
 const PALETTE = [C.blue,C.teal,C.yellow,C.orange,C.purple,C.green,C.red,C.muted];
 const CO = {plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Mono',size:10},boxWidth:9,padding:10}},tooltip:{backgroundColor:'#111520',borderColor:'#1e2840',borderWidth:1,titleColor:'#e8edf5',bodyColor:'#6b7a99',titleFont:{family:'Syne',weight:'700'}}}};
 
-const EXCL_STATUS = new Set(['CANCELADA','EM ANDAMENTO','PARALISADA']);
 const EXCL_PAG    = new Set(['NÃO PAGO','NOVO FLUXO','NÃO PASSÍVEL DE MEDIÇÃO','NAO PAGO','NAO PASSIVEL DE MEDICAO']);
 const SKIP_DATE   = new Set(['FINALIZADO','N/A CAD.','N/A TOP.','N/A AVL.','CANCELADA',
   'AGUARD. ANÁLISE','AGUAR. CAMPO','AGUAR. ANÁLISE','CAMPO TOP.','DEMANDADO','PENDENTE',
@@ -264,6 +267,7 @@ function fmtDate(v){
   return s;
 }
 
+// ── TOOLTIP ──
 const tip = document.getElementById('tip');
 function showTip(e,t,o,val,info){
   document.getElementById('tipTitle').textContent=t;
@@ -291,36 +295,27 @@ function processRows(rows){
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
-
-    r._al = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
-    r._am = r['PREV. ANÁLISE DOCUMENTAL'];
-    r._ap = r['PREV. TOPOGRAFIA'];
-    r._av = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
-    r._os  = String(r['OS'] || r['OS '] || '').trim();
-    r._emp   = cleanStr(r['EMPREENDEDIMENTO']);
-    r._campo = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
+    r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
+    r._am     = r['PREV. ANÁLISE DOCUMENTAL'];
+    r._ap     = r['PREV. TOPOGRAFIA'];
+    r._av     = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
+    r._os     = String(r['OS'] || r['OS '] || '').trim();
+    r._emp    = cleanStr(r['EMPREENDIMENTO']);
+    r._campo  = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
   });
   return rows;
 }
 
-function calcKpis(rows, totalMedidoExterno = null){
+// ── KPIS — totalMedido vem EXCLUSIVAMENTE de BB3 (lido no processFile) ──
+function calcKpis(rows, totalMedidoBB3){
   const statusCounts = {};
   rows.forEach(r => {
     const s = r._status;
     if(s) statusCounts[s] = (statusCounts[s]||0)+1;
   });
 
-  let totalMedido;
-  if (totalMedidoExterno !== null && !isNaN(totalMedidoExterno) && totalMedidoExterno > 0) {
-    totalMedido = totalMedidoExterno;
-  } else {
-    totalMedido = rows
-      .filter(r => !EXCL_STATUS.has(r._status) && !EXCL_PAG.has(r._pag) && r._pag !== '')
-      .reduce((s,r)=>s+r._valor,0);
-  }
-
-  const pagRows   = rows.filter(r => r._pag === 'PAGO 100%');
-  const pago100   = pagRows.reduce((s,r)=>s+r._valor,0);
+  const pagRows  = rows.filter(r => r._pag === 'PAGO 100%');
+  const pago100  = pagRows.reduce((s,r)=>s+r._valor,0);
 
   const faltaRows  = rows.filter(r => r._pag === 'FALTA 60%');
   const faltaBruto = faltaRows.reduce((s,r)=>s+r._valor,0);
@@ -328,14 +323,20 @@ function calcKpis(rows, totalMedidoExterno = null){
 
   const npRows = rows.filter(r =>
     (r._pag === 'NÃO PAGO' || r['SITUAÇÃO PAGAMENTO']==null || r._pag === '') &&
-    !EXCL_STATUS.has(r._status)
+    !['CANCELADA','EM ANDAMENTO','PARALISADA'].includes(r._status)
   );
   const naPago = npRows.reduce((s,r)=>s+r._valor,0);
 
   const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
 
-  return {statusCounts, totalMedido, pago100, pagCount:pagRows.length,
-          faltaVal, faltaBruto, faltaCount:faltaRows.length, naPago, npCount:npRows.length, multaVal};
+  return {
+    statusCounts,
+    totalMedido: totalMedidoBB3,   // ← único ponto de entrada, sempre BB3
+    pago100, pagCount: pagRows.length,
+    faltaVal, faltaBruto, faltaCount: faltaRows.length,
+    naPago, npCount: npRows.length,
+    multaVal
+  };
 }
 
 function calcMensal(rows){
@@ -415,7 +416,6 @@ function calcSemanal(rows){
 
 function calcFunil(rows){
   const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
-
   const CAMPO_OK = new Set(['FINALIZADO','N/A','N/A CAD.','N/A TOP.','N/A AVL.','N/A CAD','N/A TOP','N/A AVL','RETORNO FINALIZADO']);
   const base8    = baseAll.filter(r => CAMPO_OK.has(r._al) || r['STATUS CAD. CAMPO'] == null || r._al === '');
   const campoPend= baseAll.filter(r => !base8.includes(r));
@@ -451,10 +451,10 @@ function calcStatusDetail(rows){
 let charts=[];
 function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts=[];}
 
-function buildDashboard(rawRows, filename, totalMedidoExterno = null){
+function buildDashboard(rawRows, filename, totalMedidoBB3){
   destroyCharts();
   const rows   = processRows(rawRows);
-  const kpis   = calcKpis(rows, totalMedidoExterno);
+  const kpis   = calcKpis(rows, totalMedidoBB3);
   const mensal = calcMensal(rows);
   const servs  = calcServicos(rows);
   const resps  = calcResponsaveis(rows);
@@ -477,6 +477,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     return d;
   }
 
+  // ── ROW 1: 4 KPIs ──
   function kpiCard(col,acc,lbl,short,full,sub,note){
     card(col,0,`
       <div class="accent-bar" style="background:${acc}"></div>
@@ -487,12 +488,12 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
       ${note?`<div class="kpi-note">${note}</div>`:''}
     `);
   }
-  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor acumulado de medições','');
+  kpiCard('c3',C.blue,  'Total Medido', fmtShort(kpis.totalMedido), fmtBRL(kpis.totalMedido), 'Valor lido da célula BB3','planilha Resumo · BB3');
   kpiCard('c3',C.green, 'Pago 100%',    fmtShort(kpis.pago100),     fmtBRL(kpis.pago100),     `${kpis.pagCount} ordens de serviço`,'');
   kpiCard('c3',C.yellow,'Falta 60%',    fmtShort(kpis.faltaVal),    fmtBRL(kpis.faltaVal),    `${kpis.faltaCount} OSs · saldo restante`,`${fmtBRL(kpis.faltaBruto)} × 0,6`);
   kpiCard('c3',C.red,   'Não Pago',     fmtShort(kpis.naPago),      fmtBRL(kpis.naPago),      `${kpis.npCount} OSs · NP + sem status`,'excl. Cancelada · Andamento · Paralisada');
 
-  // STATUS GERAL
+  // ── ROW 2a: STATUS GERAL ──
   let statusAtivo=null;
   const sc=kpis.statusCounts;
   function pillHtml(key,label,cor,cls,clicavel=false){
@@ -539,7 +540,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     panel.style.display='block';
   };
 
-  // PAGAMENTO
+  // ── ROW 2b: PAGAMENTO ──
   card('c4',280,`
     <div class="card-title">Situação de Pagamento</div>
     <table class="pay-table"><tbody>
@@ -556,7 +557,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     options:{...CO,cutout:'62%',plugins:{...CO.plugins,legend:{position:'right',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // MENSAL
+  // ── ROW 2c: MENSAL ──
   card('c5',280,`
     <div class="card-title">OSs Solicitadas por Mês</div>
     <div style="flex:1;position:relative;min-height:130px;"><canvas id="chartMensal"></canvas></div>
@@ -582,7 +583,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
   mTr.innerHTML=`<td style="font-family:Syne,sans-serif;font-weight:700;color:#00d4ff;font-size:10px;">TOTAL</td><td><span class="m-num">${mTotal}</span></td><td><span style="font-size:9px;color:var(--muted)">100%</span></td>`;
   mBody.appendChild(mTr);
 
-  // SERVIÇOS
+  // ── ROW 3a: SERVIÇOS ──
   card('c3',240,`<div class="card-title">Distribuição por Serviço</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartServ"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartServ'),{
     type:'polarArea',
@@ -590,7 +591,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     options:{...CO,scales:{r:{ticks:{display:false},grid:{color:'#1e2840'},pointLabels:{color:'#6b7a99',font:{family:'DM Mono',size:9}}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
-  // ENTREGAS SEMANAIS
+  // ── ROW 3b: ENTREGAS SEMANAIS ──
   card('c5',240,`
     <div class="card-title">Quantitativo de Entrega Semanal</div>
     <table class="week-table">
@@ -625,7 +626,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     wBody.appendChild(ttr);
   }
 
-  // STATUS CAMPO
+  // ── ROW 3c: STATUS CAMPO ──
   card('c4',240,`<div class="card-title">Status Campo</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartCampo"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartCampo'),{
     type:'doughnut',
@@ -633,7 +634,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // RESPONSÁVEIS
+  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
   card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
   const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
   resps.byCount.forEach(([n,c],i)=>{
@@ -644,7 +645,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     document.getElementById('barResp').appendChild(div);
   });
 
-  // VALOR POR RESPONSÁVEL
+  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
   card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartValor'),{
     type:'bar',
@@ -652,7 +653,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
-  // LEGENDA SERVIÇOS
+  // ── ROW 4c: LEGENDA SERVIÇOS ──
   card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
   servs.labels.forEach((lbl,i)=>{
     const d=document.createElement('div');d.className='srv-card';
@@ -660,7 +661,7 @@ function buildDashboard(rawRows, filename, totalMedidoExterno = null){
     document.getElementById('srvGrid').appendChild(d);
   });
 
-  // FUNIL
+  // ── ROW 5: FUNIL ──
   let setorAtivo=null;
   card('c12',0,`
     <div class="card-title">Funil de Setores — OSs em Andamento</div>
@@ -779,9 +780,9 @@ function trocarArquivo() {
 }
 
 async function carregarDoServidor() {
-  const loadMsg   = document.getElementById('loadMsg');
-  const progBar   = document.getElementById('progBar');
-  const progFill  = document.getElementById('progFill');
+  const loadMsg      = document.getElementById('loadMsg');
+  const progBar      = document.getElementById('progBar');
+  const progFill     = document.getElementById('progFill');
   const uploadScreen = document.getElementById('uploadScreen');
 
   loadMsg.style.display = 'block';
@@ -791,52 +792,36 @@ async function carregarDoServidor() {
 
   try {
     const res = await fetch('/api/carregar');
-    
-    if (res.status === 404) {
-      // Nenhum dado salvo, mostra tela de upload
-      loadMsg.style.display = 'none';
-      progBar.style.display = 'none';
-      return;
-    }
-    
+    if (res.status === 404) { loadMsg.style.display='none'; progBar.style.display='none'; return; }
     if (!res.ok) throw new Error('Erro ao carregar dados');
 
     progFill.style.width = '80%';
     const data = await res.json();
     progFill.style.width = '100%';
 
-    // Verifica se tem dados válidos
-    if (data.rows && data.rows.length > 0) {
-      setTimeout(() => {
-        uploadScreen.style.display = 'none';
-        document.getElementById('dashWrapper').style.display = 'block';
-        buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedido);
-        if (data.updatedAt) {
-          const d = new Date(data.updatedAt);
-          const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour:'2-digit',minute:'2-digit'});
-          document.getElementById('tbRight').textContent = 'Atualizado: ' + fmt;
-        }
-      }, 200);
-    } else {
-      // Dados inválidos, mostra tela de upload
-      loadMsg.style.display = 'none';
-      progBar.style.display = 'none';
-      uploadScreen.style.display = 'flex';
-    }
+    setTimeout(() => {
+      uploadScreen.style.display = 'none';
+      document.getElementById('dashWrapper').style.display = 'block';
+      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBB3);
+      if (data.updatedAt) {
+        const d = new Date(data.updatedAt);
+        const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+        document.getElementById('tbRight').textContent = 'Atualizado: ' + fmt;
+      }
+    }, 200);
 
   } catch(err) {
     loadMsg.style.display = 'none';
     progBar.style.display = 'none';
-    console.warn('Erro ao carregar dados:', err.message);
-    // Mantém a tela de upload visível
+    console.warn('Sem dados no servidor:', err.message);
   }
 }
 
 function processFile(file) {
-  const progFill = document.getElementById('progFill');
-  const progBar  = document.getElementById('progBar');
-  const loadMsg  = document.getElementById('loadMsg');
-  const loadError= document.getElementById('loadError');
+  const progFill  = document.getElementById('progFill');
+  const progBar   = document.getElementById('progBar');
+  const loadMsg   = document.getElementById('loadMsg');
+  const loadError = document.getElementById('loadError');
 
   loadMsg.style.display = 'block';
   loadMsg.textContent = '⚙️ Lendo arquivo...';
@@ -851,26 +836,29 @@ function processFile(file) {
       const buffer = e.target.result;
       const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
 
+      // Procura aba "Resumo" (case insensitive)
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // Busca o valor da célula BB3 (Total Medido)
-      let totalMedidoExterno = null;
+      // ── TOTAL MEDIDO: lido EXCLUSIVAMENTE de BB3 ──
+      // BB3 deve conter o valor numérico do total medido
+      let totalMedidoBB3 = 0;
       const cellBB3 = ws['BB3'];
-      if (cellBB3 && typeof cellBB3.v === 'number' && cellBB3.v > 0) {
-        totalMedidoExterno = cellBB3.v;
-        console.log('Valor encontrado na célula BB3:', totalMedidoExterno);
+      if (cellBB3 && typeof cellBB3.v === 'number') {
+        totalMedidoBB3 = cellBB3.v;
       }
 
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
 
+      // Procura linha de cabeçalho (contém coluna 'OS')
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
-        if ((raw[i]||[]).some(v => v != null && String(v).trim() === 'OS' || String(v).trim() === 'OS ')) {
+        if ((raw[i]||[]).some(v => v != null && (String(v).trim() === 'OS' || String(v).trim() === 'OS '))) {
           headerRowIdx = i; break;
         }
       }
 
+      // Normaliza headers: remove espaços extras
       const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
 
       const rows = [];
@@ -887,33 +875,20 @@ function processFile(file) {
 
       progFill.style.width = '100%';
 
+      // Tenta salvar no servidor (inclui totalMedidoBB3 para o carregarDoServidor)
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
-        // Salva no servidor
-        const response = await fetch('/api/salvar', {
+        await fetch('/api/salvar', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            rows: rows,
-            filename: file.name,
-            totalMedido: totalMedidoExterno,
-            updatedAt: new Date().toISOString()
-          })
+          headers: { 'Content-Type': 'application/octet-stream', 'x-filename': file.name },
+          body: new Uint8Array(buffer)
         });
-        
-        if (!response.ok) {
-          throw new Error('Falha ao salvar');
-        }
-        
-        console.log('Dados salvos com sucesso');
-      } catch(e) { 
-        console.warn('Não salvou no servidor:', e); 
-      }
+      } catch(e) { console.warn('Não salvou no servidor:', e); }
 
       setTimeout(() => {
         document.getElementById('uploadScreen').style.display = 'none';
         document.getElementById('dashWrapper').style.display = 'block';
-        buildDashboard(rows, file.name, totalMedidoExterno);
+        buildDashboard(rows, file.name, totalMedidoBB3);
       }, 300);
 
     } catch(err) {
