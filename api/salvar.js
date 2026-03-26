@@ -1,8 +1,5 @@
 // api/salvar.js
-import fs from 'fs';
-import path from 'path';
-
-const DATA_FILE = path.join('/tmp', 'planilha_data.json');
+import { kv } from '@vercel/kv';
 
 export default async function handler(req, res) {
   // Configurar CORS
@@ -26,10 +23,17 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Dados inválidos' });
     }
     
-    // Salva os dados
-    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    // Salva no KV Store
+    const saveData = {
+      rows: data.rows,
+      filename: data.filename,
+      totalMedido: data.totalMedido,
+      updatedAt: new Date().toISOString()
+    };
     
-    console.log(`Dados salvos: ${data.rows.length} linhas, totalMedido: ${data.totalMedido}`);
+    await kv.set('dashboard_cemig_data', JSON.stringify(saveData));
+    
+    console.log(`✅ Dados salvos no KV: ${data.rows.length} linhas, totalMedido: ${data.totalMedido}`);
     
     res.status(200).json({ 
       success: true, 
@@ -39,7 +43,7 @@ export default async function handler(req, res) {
     });
     
   } catch (error) {
-    console.error('Erro ao salvar:', error);
+    console.error('❌ Erro ao salvar:', error);
     res.status(500).json({ error: 'Erro ao processar arquivo: ' + error.message });
   }
 }
