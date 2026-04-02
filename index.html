@@ -133,6 +133,27 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .week-val{font-family:'Syne',sans-serif;font-weight:600;font-size:11px;color:#22d47a;}
 .week-total td{font-family:'Syne',sans-serif;font-weight:700;color:#00d4ff;background:rgba(0,212,255,.04);border-top:2px solid rgba(0,212,255,.25)!important;}
 
+/* ── RECEBIMENTO SEMANAL ── */
+.recv-table{width:100%;border-collapse:collapse;}
+.recv-table thead tr{border-bottom:2px solid rgba(127,255,107,.3);}
+.recv-table th{padding:9px 10px;font-size:9px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#7fff6b;text-align:center;}
+.recv-table th:first-child{text-align:left;}
+.recv-table tbody tr{border-bottom:1px solid var(--border);cursor:default;transition:background .12s;}
+.recv-table tbody tr:hover td{background:rgba(127,255,107,.04);}
+.recv-table td{padding:11px 10px;font-size:11px;text-align:center;vertical-align:middle;}
+.recv-table td:first-child{text-align:left;}
+.recv-period{display:flex;flex-direction:column;gap:3px;}
+.recv-label{font-size:11px;font-weight:500;color:var(--text);}
+.recv-range{font-size:9px;color:var(--muted);}
+.recv-curr-badge{display:inline-block;font-size:9px;font-weight:700;color:#22d47a;background:rgba(34,212,122,.13);border:1px solid rgba(34,212,122,.3);border-radius:3px;padding:1px 7px;margin-top:2px;}
+.recv-bar{width:100%;height:4px;background:var(--border);border-radius:2px;margin-top:5px;overflow:hidden;}
+.recv-bar-fill{height:100%;background:linear-gradient(90deg,#7fff6b,rgba(127,255,107,.35));border-radius:2px;transition:width .4s ease;}
+.recv-num{font-family:'Syne',sans-serif;font-weight:700;font-size:20px;color:#7fff6b;}
+.recv-num-curr{color:#22d47a;}
+.recv-pct{font-size:9px;color:var(--muted);margin-top:2px;}
+.recv-val{font-family:'Syne',sans-serif;font-weight:600;font-size:11px;color:#7fff6b;}
+.recv-total td{font-family:'Syne',sans-serif;font-weight:700;color:#7fff6b;background:rgba(127,255,107,.04);border-top:2px solid rgba(127,255,107,.25)!important;}
+
 /* ── FUNIL ── */
 .funil-kpi{background:rgba(0,0,0,.15);border:1px solid var(--border);border-radius:8px;padding:10px;text-align:center;cursor:pointer;transition:border-color .2s,transform .15s;}
 .funil-kpi:hover{transform:translateY(-2px);}
@@ -306,7 +327,6 @@ function processRows(rows){
   return rows;
 }
 
-// ── KPIS — totalMedido vem EXCLUSIVAMENTE de BB3 (lido no processFile) ──
 function calcKpis(rows, totalMedidoBB3){
   const statusCounts = {};
   rows.forEach(r => {
@@ -331,7 +351,7 @@ function calcKpis(rows, totalMedidoBB3){
 
   return {
     statusCounts,
-    totalMedido: totalMedidoBB3,   // ← único ponto de entrada, sempre BB3
+    totalMedido: totalMedidoBB3,
     pago100, pagCount: pagRows.length,
     faltaVal, faltaBruto, faltaCount: faltaRows.length,
     naPago, npCount: npRows.length,
@@ -414,6 +434,55 @@ function calcSemanal(rows){
   return semanas.slice(0,5);
 }
 
+// ── RECEBIMENTO SEMANAL POR DATA DE SOLICITAÇÃO ──
+function calcRecebimentoSemanal(rows) {
+  const COL = 'DATA DE SOLICITAÇÃO';
+  const WEEKS = 5;
+
+  // segunda-feira da semana atual
+  const hoje = new Date();
+  hoje.setHours(12,0,0,0);
+  const diaSemana = hoje.getDay();
+  const diffMon = (diaSemana === 0) ? -6 : 1 - diaSemana;
+  const currMon = new Date(hoje);
+  currMon.setDate(hoje.getDate() + diffMon);
+  currMon.setHours(0,0,0,0);
+
+  const semanas = [];
+  for (let i = WEEKS - 1; i >= 0; i--) {
+    const mon = new Date(currMon);
+    mon.setDate(currMon.getDate() - i * 7);
+    mon.setHours(0,0,0,0);
+    const sun = new Date(mon);
+    sun.setDate(mon.getDate() + 6);
+    sun.setHours(23,59,59,999);
+
+    const sub = rows.filter(r => {
+      let v = r[COL];
+      if (v == null) return false;
+      let d;
+      if (typeof v === 'number') { d = new Date(Math.round((v - 25569) * 86400 * 1000)); }
+      else { d = new Date(v); }
+      if (isNaN(d.getTime())) return false;
+      return d >= mon && d <= sun;
+    });
+
+    const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+    const fmtShortD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
+
+    semanas.push({
+      ini: fmtD(mon),
+      fim: fmtD(sun),
+      iniShort: fmtShortD(mon),
+      fimShort: fmtShortD(sun),
+      os: sub.length,
+      val: sub.reduce((s, r) => s + r._valor, 0),
+      isCurr: i === 0
+    });
+  }
+  return semanas;
+}
+
 function calcFunil(rows){
   const baseAll  = rows.filter(r => r._status === 'EM ANDAMENTO');
   const CAMPO_OK = new Set(['FINALIZADO','N/A','N/A CAD.','N/A TOP.','N/A AVL.','N/A CAD','N/A TOP','N/A AVL','RETORNO FINALIZADO']);
@@ -453,15 +522,16 @@ function destroyCharts(){charts.forEach(c=>{try{c.destroy();}catch(e){}});charts
 
 function buildDashboard(rawRows, filename, totalMedidoBB3){
   destroyCharts();
-  const rows   = processRows(rawRows);
-  const kpis   = calcKpis(rows, totalMedidoBB3);
-  const mensal = calcMensal(rows);
-  const servs  = calcServicos(rows);
-  const resps  = calcResponsaveis(rows);
-  const campo  = calcCampo(rows);
-  const seman  = calcSemanal(rows);
-  const funil  = calcFunil(rows);
-  const stDet  = calcStatusDetail(rows);
+  const rows        = processRows(rawRows);
+  const kpis        = calcKpis(rows, totalMedidoBB3);
+  const mensal      = calcMensal(rows);
+  const servs       = calcServicos(rows);
+  const resps       = calcResponsaveis(rows);
+  const campo       = calcCampo(rows);
+  const seman       = calcSemanal(rows);
+  const recebSeman  = calcRecebimentoSemanal(rows);
+  const funil       = calcFunil(rows);
+  const stDet       = calcStatusDetail(rows);
 
   document.getElementById('tbRight').textContent = `${rows.length} OSs · ${filename} · ${new Date().toLocaleDateString('pt-BR')}`;
 
@@ -634,7 +704,99 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
-  // ── ROW 4a: RESPONSÁVEIS BARRAS ──
+  // ══════════════════════════════════════════════════
+  // ── ROW 4: RECEBIMENTO SEMANAL DE OSs (DATA DE SOLICITAÇÃO) ──
+  // ══════════════════════════════════════════════════
+  const totalOSsReceb = recebSeman.reduce((a,r) => a + r.os, 0);
+  const totalValReceb = recebSeman.reduce((a,r) => a + r.val, 0);
+  const maxOSreceb    = recebSeman.length ? Math.max(...recebSeman.map(r => r.os)) : 1;
+
+  card('c12', 0, `
+    <div class="accent-bar" style="background:linear-gradient(90deg,#7fff6b,rgba(127,255,107,.2))"></div>
+    <div class="card-title" style="margin-bottom:14px;">
+      Recebimento Semanal de OSs — Data de Solicitação
+      <span style="margin-left:auto;font-size:9px;font-weight:400;color:var(--muted);letter-spacing:0;text-transform:none;">últimas 5 semanas · seg → dom</span>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px;" id="recebKpiGrid"></div>
+    <table class="recv-table">
+      <thead>
+        <tr>
+          <th style="text-align:left;">Semana (seg → dom)</th>
+          <th>OSs recebidas</th>
+          <th>Distribuição</th>
+          <th>% do total</th>
+          <th>Valor medido</th>
+        </tr>
+      </thead>
+      <tbody id="recebBody"></tbody>
+    </table>
+    <div style="margin-top:10px;font-size:9px;color:rgba(107,122,153,.35);">
+      📌 Baseado na coluna DATA DE SOLICITAÇÃO · semanas de segunda a domingo · avança automaticamente
+    </div>
+  `);
+
+  // Mini KPIs no topo do card
+  const kpiGrid = document.getElementById('recebKpiGrid');
+  recebSeman.forEach(s => {
+    const div = document.createElement('div');
+    const cor = s.isCurr ? '#22d47a' : '#7fff6b';
+    const bgAlpha = s.isCurr ? 'rgba(34,212,122,.08)' : 'rgba(127,255,107,.05)';
+    const borderColor = s.isCurr ? 'rgba(34,212,122,.35)' : 'rgba(127,255,107,.2)';
+    div.style.cssText = `background:${bgAlpha};border:1px solid ${borderColor};border-radius:8px;padding:10px 12px;text-align:center;`;
+    div.innerHTML = `
+      <div style="font-size:8px;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;margin-bottom:4px;line-height:1.4;">${s.iniShort}<br>→ ${s.fimShort}</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:28px;color:${cor};line-height:1;">${s.os}</div>
+      <div style="font-size:9px;color:var(--muted);margin-top:3px;">OSs</div>
+      ${s.isCurr ? '<div style="font-size:8px;font-weight:700;color:#22d47a;margin-top:4px;background:rgba(34,212,122,.13);border:1px solid rgba(34,212,122,.3);border-radius:3px;padding:1px 6px;">semana atual</div>' : ''}
+    `;
+    kpiGrid.appendChild(div);
+  });
+
+  // Tabela de recebimento
+  const recebBody = document.getElementById('recebBody');
+  recebSeman.forEach(row => {
+    const pct = maxOSreceb > 0 ? Math.round(row.os / maxOSreceb * 100) : 0;
+    const pctTotal = totalOSsReceb > 0 ? ((row.os / totalOSsReceb) * 100).toFixed(1) + '%' : '—';
+    const cor = row.isCurr ? '#22d47a' : '#7fff6b';
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>
+        <div class="recv-period">
+          <span class="recv-label">📅 ${row.ini} → ${row.fim}</span>
+          ${row.isCurr ? '<span class="recv-curr-badge">semana atual (em andamento)</span>' : ''}
+        </div>
+      </td>
+      <td>
+        <div class="recv-num ${row.isCurr ? 'recv-num-curr' : ''}" style="color:${cor}">${row.os}</div>
+      </td>
+      <td style="min-width:120px;">
+        <div class="recv-bar"><div class="recv-bar-fill" style="width:${pct}%;${row.isCurr?'background:linear-gradient(90deg,#22d47a,rgba(34,212,122,.35));':''}"></div></div>
+        <div class="recv-pct">${pct}% do pico</div>
+      </td>
+      <td>
+        <span style="font-size:12px;font-weight:500;color:var(--text);">${pctTotal}</span>
+      </td>
+      <td>
+        <span class="recv-val" style="color:${cor}">${fmtBRL(row.val)}</span>
+      </td>`;
+    tr.addEventListener('mouseenter', e => showTip(e, `${row.ini} → ${row.fim}`, `${row.os} OSs recebidas`, fmtBRL(row.val), row.isCurr ? 'Semana em andamento' : 'Semana encerrada'));
+    tr.addEventListener('mousemove', moveTip);
+    tr.addEventListener('mouseleave', hideTip);
+    recebBody.appendChild(tr);
+  });
+
+  // Linha de total
+  const recebTotalTr = document.createElement('tr');
+  recebTotalTr.className = 'recv-total';
+  recebTotalTr.innerHTML = `
+    <td style="font-size:10px;">TOTAL (5 semanas)</td>
+    <td><span class="recv-num" style="font-size:17px;">${totalOSsReceb}</span></td>
+    <td>—</td>
+    <td><span style="font-size:11px;">100%</span></td>
+    <td><span class="recv-val" style="color:#7fff6b;font-size:12px;">${fmtBRL(totalValReceb)}</span></td>`;
+  recebBody.appendChild(recebTotalTr);
+
+  // ── ROW 5a: RESPONSÁVEIS BARRAS ──
   card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
   const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
   resps.byCount.forEach(([n,c],i)=>{
@@ -645,7 +807,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
     document.getElementById('barResp').appendChild(div);
   });
 
-  // ── ROW 4b: VALOR POR RESPONSÁVEL ──
+  // ── ROW 5b: VALOR POR RESPONSÁVEL ──
   card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartValor'),{
     type:'bar',
@@ -653,7 +815,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
     options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
-  // ── ROW 4c: LEGENDA SERVIÇOS ──
+  // ── ROW 5c: LEGENDA SERVIÇOS ──
   card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
   servs.labels.forEach((lbl,i)=>{
     const d=document.createElement('div');d.className='srv-card';
@@ -661,7 +823,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
     document.getElementById('srvGrid').appendChild(d);
   });
 
-  // ── ROW 5: FUNIL ──
+  // ── ROW 6: FUNIL ──
   let setorAtivo=null;
   card('c12',0,`
     <div class="card-title">Funil de Setores — OSs em Andamento</div>
@@ -836,12 +998,9 @@ function processFile(file) {
       const buffer = e.target.result;
       const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
 
-      // Procura aba "Resumo" (case insensitive)
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
-      // ── TOTAL MEDIDO: lido EXCLUSIVAMENTE de BB3 ──
-      // BB3 deve conter o valor numérico do total medido
       let totalMedidoBB3 = 0;
       const cellBB3 = ws['BB3'];
       if (cellBB3 && typeof cellBB3.v === 'number') {
@@ -850,7 +1009,6 @@ function processFile(file) {
 
       const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
 
-      // Procura linha de cabeçalho (contém coluna 'OS')
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
         if ((raw[i]||[]).some(v => v != null && (String(v).trim() === 'OS' || String(v).trim() === 'OS '))) {
@@ -858,7 +1016,6 @@ function processFile(file) {
         }
       }
 
-      // Normaliza headers: remove espaços extras
       const headers = (raw[headerRowIdx]||[]).map(h => h == null ? '' : String(h).trim());
 
       const rows = [];
@@ -875,7 +1032,6 @@ function processFile(file) {
 
       progFill.style.width = '100%';
 
-      // Tenta salvar no servidor (inclui totalMedidoBB3 para o carregarDoServidor)
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
         await fetch('/api/salvar', {
