@@ -313,7 +313,9 @@ function processRows(rows){
 
     r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
     r._prevValor = parseFloat(r['PRÉV. VALOR DE MEDIÇÃO'])||0;
-    r._nProp = parseInt(r['PREVISÃO - Nº PROP. (PREENCHIMENTO OBRIGATÓRIO)'])||0;
+    // Garante que o número de propriedades seja lido corretamente mesmo se for string
+    let nPropRaw = r['PREVISÃO - Nº PROP. (PREENCHIMENTO OBRIGATÓRIO)'];
+    r._nProp = (typeof nPropRaw === 'number') ? nPropRaw : parseInt(String(nPropRaw||'0').replace(/\D/g,''))||0;
     r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
@@ -479,7 +481,13 @@ function calcRecebimentoSemanal(rows) {
       if (typeof v === 'number') { d = new Date(Math.round((v - 25569) * 86400 * 1000)); }
       else { d = new Date(v); }
       if (isNaN(d.getTime())) return false;
-      return d >= mon && d <= sun;
+      
+      // Ajuste para garantir que o dia inicial (segunda) seja incluído corretamente
+      // Comparamos apenas as datas (ano, mês, dia) para evitar problemas de fuso horário/hora
+      const dStr = d.toISOString().split('T')[0];
+      const monStr = mon.toISOString().split('T')[0];
+      const sunStr = sun.toISOString().split('T')[0];
+      return dStr >= monStr && dStr <= sunStr;
     });
 
     const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
@@ -742,7 +750,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
           <th>Nº Propriedades</th>
           <th>Distribuição</th>
           <th>% do total</th>
-          <th>Valor medido</th>
+          <th>Prev. de Medição</th>
         </tr>
       </thead>
       <tbody id="recebBody"></tbody>
