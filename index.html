@@ -436,16 +436,29 @@ function calcSemanal(rows){
 
 // ── RECEBIMENTO SEMANAL POR DATA DE SOLICITAÇÃO ──
 function calcRecebimentoSemanal(rows) {
-  const COL = 'DATA DE SOLICITAÇÃO';
+  // Tenta encontrar a coluna correta (DA ou DE) para evitar que o gráfico fique zerado
+  const COL = rows[0]?.['DATA DA SOLICITAÇÃO'] !== undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DE SOLICITAÇÃO';
   const WEEKS = 5;
 
-  // segunda-feira da semana atual
-  const hoje = new Date();
-  hoje.setHours(12,0,0,0);
-  const diaSemana = hoje.getDay();
+  // Encontra a maior data na planilha para basear o gráfico nela (evita gráfico zerado com dados antigos)
+  let maxDate = null;
+  rows.forEach(r => {
+    let v = r[COL];
+    if (v == null) return;
+    let d = (typeof v === 'number') ? new Date(Math.round((v - 25569) * 86400 * 1000)) : new Date(v);
+    if (!isNaN(d.getTime())) {
+      if (!maxDate || d > maxDate) maxDate = new Date(d);
+    }
+  });
+  if (!maxDate) maxDate = new Date(); // Fallback para hoje se não houver datas
+
+  // segunda-feira da semana da última data encontrada
+  const baseDate = new Date(maxDate);
+  baseDate.setHours(12,0,0,0);
+  const diaSemana = baseDate.getDay();
   const diffMon = (diaSemana === 0) ? -6 : 1 - diaSemana;
-  const currMon = new Date(hoje);
-  currMon.setDate(hoje.getDate() + diffMon);
+  const currMon = new Date(baseDate);
+  currMon.setDate(baseDate.getDate() + diffMon);
   currMon.setHours(0,0,0,0);
 
   const semanas = [];
