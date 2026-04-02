@@ -313,6 +313,7 @@ function processRows(rows){
 
     r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
     r._prevValor = parseFloat(r['PRÉV. VALOR DE MEDIÇÃO'])||0;
+    r._nProp = parseInt(r['PREVISÃO - Nº PROP. (PREENCHIMENTO OBRIGATÓRIO)'])||0;
     r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
@@ -490,6 +491,7 @@ function calcRecebimentoSemanal(rows) {
       iniShort: fmtShortD(mon),
       fimShort: fmtShortD(sun),
       os: sub.length,
+      nProp: sub.reduce((s, r) => s + r._nProp, 0),
       val: sub.reduce((s, r) => s + r._prevValor, 0),
       isCurr: i === 0
     });
@@ -737,6 +739,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
         <tr>
           <th style="text-align:left;">Semana (seg → dom)</th>
           <th>OSs recebidas</th>
+          <th>Nº Propriedades</th>
           <th>Distribuição</th>
           <th>% do total</th>
           <th>Valor medido</th>
@@ -745,7 +748,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
       <tbody id="recebBody"></tbody>
     </table>
     <div style="margin-top:10px;font-size:9px;color:rgba(107,122,153,.35);">
-      📌 Baseado na coluna DATA DE SOLICITAÇÃO · semanas de segunda a domingo · avança automaticamente
+      📌 Baseado na coluna DATA DA SOLICITAÇÃO · semanas de segunda a domingo · avança automaticamente
     </div>
   `);
 
@@ -783,6 +786,9 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
       <td>
         <div class="recv-num ${row.isCurr ? 'recv-num-curr' : ''}" style="color:${cor}">${row.os}</div>
       </td>
+      <td>
+        <div class="recv-num" style="color:var(--muted);font-size:16px;">${row.nProp}</div>
+      </td>
       <td style="min-width:120px;">
         <div class="recv-bar"><div class="recv-bar-fill" style="width:${pct}%;${row.isCurr?'background:linear-gradient(90deg,#22d47a,rgba(34,212,122,.35));':''}"></div></div>
         <div class="recv-pct">${pct}% do pico</div>
@@ -800,11 +806,13 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   });
 
   // Linha de total
+  const totalNPropReceb = recebSeman.reduce((a,r) => a + r.nProp, 0);
   const recebTotalTr = document.createElement('tr');
   recebTotalTr.className = 'recv-total';
   recebTotalTr.innerHTML = `
     <td style="font-size:10px;">TOTAL (5 semanas)</td>
     <td><span class="recv-num" style="font-size:17px;">${totalOSsReceb}</span></td>
+    <td><span class="recv-num" style="font-size:17px;color:var(--muted);">${totalNPropReceb}</span></td>
     <td>—</td>
     <td><span style="font-size:11px;">100%</span></td>
     <td><span class="recv-val" style="color:#7fff6b;font-size:12px;">${fmtBRL(totalValReceb)}</span></td>`;
