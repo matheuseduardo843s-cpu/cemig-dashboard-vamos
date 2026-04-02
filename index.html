@@ -312,6 +312,7 @@ function processRows(rows){
     const cleanStr = v => String(v||'').trim().replace(/^'+|'+$/g,'').trim();
 
     r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
+    r._prevValor = parseFloat(r['PRÉV. VALOR DE MEDIÇÃO'])||0;
     r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
@@ -489,7 +490,7 @@ function calcRecebimentoSemanal(rows) {
       iniShort: fmtShortD(mon),
       fimShort: fmtShortD(sun),
       os: sub.length,
-      val: sub.reduce((s, r) => s + r._valor, 0),
+      val: sub.reduce((s, r) => s + r._prevValor, 0),
       isCurr: i === 0
     });
   }
