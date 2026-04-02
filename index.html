@@ -314,7 +314,9 @@ function processRows(rows){
     r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
     r._prevValor = parseFloat(r['PRÉV. VALOR DE MEDIÇÃO'])||0;
     // Garante que o número de propriedades seja lido corretamente mesmo se for string
-    let nPropRaw = r['PREVISÃO - Nº PROP. (PREENCHIMENTO OBRIGATÓRIO)'];
+    let nPropRaw = null;
+    const nPropKey = Object.keys(r).find(k => k.toUpperCase().includes('PROP') && k.toUpperCase().includes('OBRIGAT'));
+    if (nPropKey) nPropRaw = r[nPropKey];
     r._nProp = (typeof nPropRaw === 'number') ? nPropRaw : parseInt(String(nPropRaw||'0').replace(/\D/g,''))||0;
     r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
@@ -482,12 +484,20 @@ function calcRecebimentoSemanal(rows) {
       else { d = new Date(v); }
       if (isNaN(d.getTime())) return false;
       
-      // Ajuste para garantir que o dia inicial (segunda) seja incluído corretamente
-      // Comparamos apenas as datas (ano, mês, dia) para evitar problemas de fuso horário/hora
-      const dStr = d.toISOString().split('T')[0];
-      const monStr = mon.toISOString().split('T')[0];
-      const sunStr = sun.toISOString().split('T')[0];
-      return dStr >= monStr && dStr <= sunStr;
+      // Usa componentes locais para evitar problemas de fuso horário
+      const toNum = dt => {
+        const yy = dt.getFullYear ? dt.getFullYear() : dt.getUTCFullYear();
+        const mm = dt.getFullYear ? dt.getMonth() : dt.getUTCMonth();
+        const dd = dt.getFullYear ? dt.getDate() : dt.getUTCDate();
+        return yy * 10000 + mm * 100 + dd;
+      };
+      // Datas do Excel serial são UTC, usar getUTC*; datas de boundary são locais
+      const dNum = (typeof v === 'number')
+        ? d.getUTCFullYear() * 10000 + d.getUTCMonth() * 100 + d.getUTCDate()
+        : d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
+      const monNum = mon.getFullYear() * 10000 + mon.getMonth() * 100 + mon.getDate();
+      const sunNum = sun.getFullYear() * 10000 + sun.getMonth() * 100 + sun.getDate();
+      return dNum >= monNum && dNum <= sunNum;
     });
 
     const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
