@@ -318,7 +318,7 @@ function processRows(rows){
       const s = String(v).trim().replace(/\./g,'').replace(',','.');
       return parseFloat(s) || 0;
     };
-    r._valor  = parseNum(r['VALOR DE MEDIÇÃO']);
+    r._valor  = parseNum(r['VALOR DE MEDIÇÃO']) || parseNum(r['VALOR PAGO BM']);
     // Se ainda vier fórmula não calculada (começa com '='), trata como vazio
     const safeStr = v => {
       const s = cleanStr(v);
