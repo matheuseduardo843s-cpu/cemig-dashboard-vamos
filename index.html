@@ -448,39 +448,52 @@ function calcSemanal(rows){
 
 // ── RECEBIMENTO SEMANAL POR DATA DE SOLICITAÇÃO ──
 function calcRecebimentoSemanal(rows) {
-  const COL = 'DATA DE SOLICITAÇÃO';
+  // Tenta os dois nomes possíveis da coluna
+  const COL = rows.some(r => r['DATA DA SOLICITAÇÃO'] != null) ? 'DATA DA SOLICITAÇÃO' : 'DATA DE SOLICITAÇÃO';
   const WEEKS = 5;
 
-  // segunda-feira da semana atual
-  const hoje = new Date();
-  hoje.setHours(12,0,0,0);
-  const diaSemana = hoje.getDay();
-  const diffMon = (diaSemana === 0) ? -6 : 1 - diaSemana;
-  const currMon = new Date(hoje);
-  currMon.setDate(hoje.getDate() + diffMon);
-  currMon.setHours(0,0,0,0);
+  // Converte valor de célula para Date (suporta serial Excel e string)
+  const toDate = v => {
+    if (v == null) return null;
+    let d = (typeof v === 'number')
+      ? new Date(Math.round((v - 25569) * 86400 * 1000))
+      : new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  };
+
+  // Usa a ÚLTIMA data encontrada nos dados como referência (evita gráfico zerado com dados históricos)
+  let refDate = null;
+  rows.forEach(r => {
+    const d = toDate(r[COL]);
+    if (d && (!refDate || d > refDate)) refDate = d;
+  });
+  if (!refDate) refDate = new Date(); // fallback só se não houver nenhuma data
+
+  // Segunda-feira da semana da última data
+  const base = new Date(refDate);
+  base.setHours(12,0,0,0);
+  const dow = base.getDay();
+  base.setDate(base.getDate() + ((dow === 0) ? -6 : 1 - dow));
+  base.setHours(0,0,0,0);
+
+  const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
+  const fmtShortD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
 
   const semanas = [];
   for (let i = WEEKS - 1; i >= 0; i--) {
-    const mon = new Date(currMon);
-    mon.setDate(currMon.getDate() - i * 7);
+    const mon = new Date(base);
+    mon.setDate(base.getDate() - i * 7);
     mon.setHours(0,0,0,0);
     const sun = new Date(mon);
     sun.setDate(mon.getDate() + 6);
     sun.setHours(23,59,59,999);
 
     const sub = rows.filter(r => {
-      let v = r[COL];
-      if (v == null) return false;
-      let d;
-      if (typeof v === 'number') { d = new Date(Math.round((v - 25569) * 86400 * 1000)); }
-      else { d = new Date(v); }
-      if (isNaN(d.getTime())) return false;
+      const d = toDate(r[COL]);
+      if (!d) return false;
+      // Compara usando timestamps locais para evitar problema de fuso
       return d >= mon && d <= sun;
     });
-
-    const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
-    const fmtShortD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}`;
 
     semanas.push({
       ini: fmtD(mon),
