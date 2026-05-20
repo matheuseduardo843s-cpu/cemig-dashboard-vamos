@@ -1008,28 +1008,36 @@ function processFile(file) {
     try {
       progFill.style.width = '50%';
       const buffer = e.target.result;
-      // cellFormula:false → lê o valor em cache (.v) em vez da fórmula como texto
-      // Isso é essencial para colunas com VLOOKUP/IF que geram SITUAÇÃO PAGAMENTO
-      const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:false, cellNF:false});
+      const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
 
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
+      // Pré-processa células com fórmula: usa o valor cached (.v) em vez da fórmula texto.
+      // Isso resolve SITUAÇÃO PAGAMENTO (VLOOKUP externo) sem quebrar números/datas.
+      Object.keys(ws).forEach(addr => {
+        if (addr[0] === '!') return;
+        const cell = ws[addr];
+        if (!cell || cell.f === undefined) return;
+        if (cell.v !== undefined && cell.v !== null) {
+          // Tem valor cached: promove para tipo nativo e remove fórmula
+          if (typeof cell.v === 'number') cell.t = 'n';
+          else if (typeof cell.v === 'string') cell.t = 's';
+          else if (typeof cell.v === 'boolean') cell.t = 'b';
+          delete cell.f;
+        } else {
+          // Sem valor cached (link externo não resolvido): trata como vazio
+          cell.t = 's'; cell.v = ''; delete cell.f;
+        }
+      });
+
       let totalMedidoBB3 = 0;
       const cellBB3 = ws['BB3'];
-      if (cellBB3 != null) {
-        // .v contém o valor cached da fórmula (número), independente de raw:false
-        if (typeof cellBB3.v === 'number') {
-          totalMedidoBB3 = cellBB3.v;
-        } else if (cellBB3.v != null) {
-          const s = String(cellBB3.v).replace(/\./g,'').replace(',','.');
-          totalMedidoBB3 = parseFloat(s) || 0;
-        }
+      if (cellBB3 && typeof cellBB3.v === 'number') {
+        totalMedidoBB3 = cellBB3.v;
       }
 
-      // raw:false → retorna valores calculados das fórmulas (ex: "FALTA 60%") em vez da fórmula string
-      // Datas numéricas ainda funcionam pois tratamos typeof v === 'number' nos helpers de data
-      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
 
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
