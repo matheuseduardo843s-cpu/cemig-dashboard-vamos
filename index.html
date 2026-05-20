@@ -311,15 +311,21 @@ function processRows(rows){
   rows.forEach(r => {
     const cleanStr = v => String(v||'').trim().replace(/^'+|'+$/g,'').trim();
 
-    r._valor  = parseFloat(r['VALOR DE MEDIÇÃO'])||0;
-    r._prevValor = parseFloat(r['PRÉV. VALOR DE MEDIÇÃO'])||0;
-    // Garante que o número de propriedades seja lido corretamente mesmo se for string
-    let nPropRaw = null;
-    const nPropKey = Object.keys(r).find(k => k.toUpperCase().includes('PROP') && k.toUpperCase().includes('OBRIGAT'));
-    if (nPropKey) nPropRaw = r[nPropKey];
-    r._nProp = (typeof nPropRaw === 'number') ? nPropRaw : parseInt(String(nPropRaw||'0').replace(/\D/g,''))||0;
-    r._status = cleanStr(r['STATUS GERAL']).toUpperCase();
-    r._pag    = cleanStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
+    // Aceita tanto 1234.56 (inglês) quanto 1234,56 (pt-BR) como número
+    const parseNum = v => {
+      if(v == null) return 0;
+      if(typeof v === 'number') return v;
+      const s = String(v).trim().replace(/\./g,'').replace(',','.');
+      return parseFloat(s) || 0;
+    };
+    r._valor  = parseNum(r['VALOR DE MEDIÇÃO']);
+    // Se ainda vier fórmula não calculada (começa com '='), trata como vazio
+    const safeStr = v => {
+      const s = cleanStr(v);
+      return s.startsWith('=') ? '' : s;
+    };
+    r._status = safeStr(r['STATUS GERAL']).toUpperCase();
+    r._pag    = safeStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
     r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
@@ -442,29 +448,16 @@ function calcSemanal(rows){
 
 // ── RECEBIMENTO SEMANAL POR DATA DE SOLICITAÇÃO ──
 function calcRecebimentoSemanal(rows) {
-  // Tenta encontrar a coluna correta (DA ou DE) para evitar que o gráfico fique zerado
-  const COL = rows[0]?.['DATA DA SOLICITAÇÃO'] !== undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DE SOLICITAÇÃO';
+  const COL = 'DATA DE SOLICITAÇÃO';
   const WEEKS = 5;
 
-  // Encontra a maior data na planilha para basear o gráfico nela (evita gráfico zerado com dados antigos)
-  let maxDate = null;
-  rows.forEach(r => {
-    let v = r[COL];
-    if (v == null) return;
-    let d = (typeof v === 'number') ? new Date(Math.round((v - 25569) * 86400 * 1000)) : new Date(v);
-    if (!isNaN(d.getTime())) {
-      if (!maxDate || d > maxDate) maxDate = new Date(d);
-    }
-  });
-  if (!maxDate) maxDate = new Date(); // Fallback para hoje se não houver datas
-
-  // segunda-feira da semana da última data encontrada
-  const baseDate = new Date(maxDate);
-  baseDate.setHours(12,0,0,0);
-  const diaSemana = baseDate.getDay();
+  // segunda-feira da semana atual
+  const hoje = new Date();
+  hoje.setHours(12,0,0,0);
+  const diaSemana = hoje.getDay();
   const diffMon = (diaSemana === 0) ? -6 : 1 - diaSemana;
-  const currMon = new Date(baseDate);
-  currMon.setDate(baseDate.getDate() + diffMon);
+  const currMon = new Date(hoje);
+  currMon.setDate(hoje.getDate() + diffMon);
   currMon.setHours(0,0,0,0);
 
   const semanas = [];
@@ -483,21 +476,7 @@ function calcRecebimentoSemanal(rows) {
       if (typeof v === 'number') { d = new Date(Math.round((v - 25569) * 86400 * 1000)); }
       else { d = new Date(v); }
       if (isNaN(d.getTime())) return false;
-      
-      // Usa componentes locais para evitar problemas de fuso horário
-      const toNum = dt => {
-        const yy = dt.getFullYear ? dt.getFullYear() : dt.getUTCFullYear();
-        const mm = dt.getFullYear ? dt.getMonth() : dt.getUTCMonth();
-        const dd = dt.getFullYear ? dt.getDate() : dt.getUTCDate();
-        return yy * 10000 + mm * 100 + dd;
-      };
-      // Datas do Excel serial são UTC, usar getUTC*; datas de boundary são locais
-      const dNum = (typeof v === 'number')
-        ? d.getUTCFullYear() * 10000 + d.getUTCMonth() * 100 + d.getUTCDate()
-        : d.getFullYear() * 10000 + d.getMonth() * 100 + d.getDate();
-      const monNum = mon.getFullYear() * 10000 + mon.getMonth() * 100 + mon.getDate();
-      const sunNum = sun.getFullYear() * 10000 + sun.getMonth() * 100 + sun.getDate();
-      return dNum >= monNum && dNum <= sunNum;
+      return d >= mon && d <= sun;
     });
 
     const fmtD = dt => `${String(dt.getDate()).padStart(2,'0')}/${String(dt.getMonth()+1).padStart(2,'0')}/${dt.getFullYear()}`;
@@ -509,8 +488,7 @@ function calcRecebimentoSemanal(rows) {
       iniShort: fmtShortD(mon),
       fimShort: fmtShortD(sun),
       os: sub.length,
-      nProp: sub.reduce((s, r) => s + r._nProp, 0),
-      val: sub.reduce((s, r) => s + r._prevValor, 0),
+      val: sub.reduce((s, r) => s + r._valor, 0),
       isCurr: i === 0
     });
   }
@@ -757,16 +735,15 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
         <tr>
           <th style="text-align:left;">Semana (seg → dom)</th>
           <th>OSs recebidas</th>
-          <th>Nº Propriedades</th>
           <th>Distribuição</th>
           <th>% do total</th>
-          <th>Prev. de Medição</th>
+          <th>Valor medido</th>
         </tr>
       </thead>
       <tbody id="recebBody"></tbody>
     </table>
     <div style="margin-top:10px;font-size:9px;color:rgba(107,122,153,.35);">
-      📌 Baseado na coluna DATA DA SOLICITAÇÃO · semanas de segunda a domingo · avança automaticamente
+      📌 Baseado na coluna DATA DE SOLICITAÇÃO · semanas de segunda a domingo · avança automaticamente
     </div>
   `);
 
@@ -804,9 +781,6 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
       <td>
         <div class="recv-num ${row.isCurr ? 'recv-num-curr' : ''}" style="color:${cor}">${row.os}</div>
       </td>
-      <td>
-        <div class="recv-num" style="color:var(--muted);font-size:16px;">${row.nProp}</div>
-      </td>
       <td style="min-width:120px;">
         <div class="recv-bar"><div class="recv-bar-fill" style="width:${pct}%;${row.isCurr?'background:linear-gradient(90deg,#22d47a,rgba(34,212,122,.35));':''}"></div></div>
         <div class="recv-pct">${pct}% do pico</div>
@@ -824,13 +798,11 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   });
 
   // Linha de total
-  const totalNPropReceb = recebSeman.reduce((a,r) => a + r.nProp, 0);
   const recebTotalTr = document.createElement('tr');
   recebTotalTr.className = 'recv-total';
   recebTotalTr.innerHTML = `
     <td style="font-size:10px;">TOTAL (5 semanas)</td>
     <td><span class="recv-num" style="font-size:17px;">${totalOSsReceb}</span></td>
-    <td><span class="recv-num" style="font-size:17px;color:var(--muted);">${totalNPropReceb}</span></td>
     <td>—</td>
     <td><span style="font-size:11px;">100%</span></td>
     <td><span class="recv-val" style="color:#7fff6b;font-size:12px;">${fmtBRL(totalValReceb)}</span></td>`;
@@ -1036,18 +1008,28 @@ function processFile(file) {
     try {
       progFill.style.width = '50%';
       const buffer = e.target.result;
-      const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:true, cellNF:false});
+      // cellFormula:false → lê o valor em cache (.v) em vez da fórmula como texto
+      // Isso é essencial para colunas com VLOOKUP/IF que geram SITUAÇÃO PAGAMENTO
+      const wb = XLSX.read(buffer, {type:'array', cellDates:false, cellFormula:false, cellNF:false});
 
       const sheetName = wb.SheetNames.find(n => n.toLowerCase().includes('resumo')) || wb.SheetNames[0];
       const ws = wb.Sheets[sheetName];
 
       let totalMedidoBB3 = 0;
       const cellBB3 = ws['BB3'];
-      if (cellBB3 && typeof cellBB3.v === 'number') {
-        totalMedidoBB3 = cellBB3.v;
+      if (cellBB3 != null) {
+        // .v contém o valor cached da fórmula (número), independente de raw:false
+        if (typeof cellBB3.v === 'number') {
+          totalMedidoBB3 = cellBB3.v;
+        } else if (cellBB3.v != null) {
+          const s = String(cellBB3.v).replace(/\./g,'').replace(',','.');
+          totalMedidoBB3 = parseFloat(s) || 0;
+        }
       }
 
-      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:true});
+      // raw:false → retorna valores calculados das fórmulas (ex: "FALTA 60%") em vez da fórmula string
+      // Datas numéricas ainda funcionam pois tratamos typeof v === 'number' nos helpers de data
+      const raw = XLSX.utils.sheet_to_json(ws, {header:1, defval:null, raw:false});
 
       let headerRowIdx = 2;
       for (let i = 0; i < Math.min(10, raw.length); i++) {
