@@ -991,14 +991,18 @@ async function exportarPDF(){
   const original = btn.innerHTML;
   btn.innerHTML = '⏳ Gerando...';
   btn.disabled = true;
+  const target = document.getElementById('dashWrapper');
+  const prevBg = target.style.background;
   try {
     document.querySelectorAll('.detail-panel').forEach(p => p.style.display = 'none');
-    const target = document.getElementById('dashWrapper');
-    await new Promise(r => setTimeout(r, 200));
+    // força fundo escuro inline (garante captura correta mesmo se body for transparente)
+    target.style.background = '#0a0d14';
+    document.body.style.background = '#0a0d14';
+    await new Promise(r => setTimeout(r, 250));
 
     const canvas = await html2canvas(target, {
       backgroundColor: '#0a0d14',
-      scale: 3,
+      scale: 2.5,
       useCORS: true,
       logging: false,
       windowWidth: target.scrollWidth,
@@ -1009,7 +1013,6 @@ async function exportarPDF(){
     const imgW = canvas.width, imgH = canvas.height;
     const orientation = imgW > imgH ? 'l' : 'p';
     const pdf = new jsPDF({ orientation, unit: 'px', format: [imgW, imgH], compress: true });
-    // PNG mantém o tema escuro nítido (sem o "embaçado" do JPEG em fundos escuros)
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgW, imgH, undefined, 'FAST');
     const dt = new Date();
     const fn = `Dashboard_CEMIG_${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}.pdf`;
@@ -1018,6 +1021,7 @@ async function exportarPDF(){
     console.error(e);
     alert('Erro ao gerar PDF: ' + e.message);
   } finally {
+    target.style.background = prevBg;
     btn.innerHTML = original;
     btn.disabled = false;
   }
