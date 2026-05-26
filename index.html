@@ -4,8 +4,11 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Dashboard CEMIG — Avalicon Engenharia</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script>window.XLSX||document.write('<script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js"><\/script>');</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
 
@@ -200,6 +203,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <span style="font-size:10px;color:var(--muted)">AVALICON ENGENHARIA</span>
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="trocarArquivo()">📂 Trocar arquivo</button>
+    <button class="tb-btn" onclick="exportarPDF()" id="btnPDF">📄 Exportar PDF</button>
     <div class="tb-right" id="tbRight">—</div>
   </div>
   <div class="canvas"><div class="dash-grid" id="grid"></div></div>
@@ -965,6 +969,63 @@ function trocarArquivo() {
   document.getElementById('progBar').style.display = 'none';
   document.getElementById('loadError').style.display = 'none';
 }
+
+async function exportarPDF(){
+  const btn = document.getElementById('btnPDF');
+  const original = btn.innerHTML;
+  btn.innerHTML = '⏳ Gerando...';
+  btn.disabled = true;
+
+  // Injeta um tema claro APENAS para o snapshot do PDF
+  const styleLight = document.createElement('style');
+  styleLight.id = 'pdfLightTheme';
+  styleLight.textContent = `
+    #dashWrapper, #dashWrapper * {
+      background-color: #ffffff !important;
+      background-image: none !important;
+      color: #1a1a1a !important;
+      border-color: #d0d7e2 !important;
+      box-shadow: none !important;
+      text-shadow: none !important;
+    }
+    #dashWrapper .tb-btn, #dashWrapper button { display: none !important; }
+    #dashWrapper canvas { background: #ffffff !important; }
+  `;
+
+  try {
+    document.querySelectorAll('.detail-panel').forEach(p => p.style.display = 'none');
+    document.head.appendChild(styleLight);
+    const target = document.getElementById('dashWrapper');
+    await new Promise(r => setTimeout(r, 250));
+
+    const canvas = await html2canvas(target, {
+      backgroundColor: '#ffffff',
+      scale: 2,
+      useCORS: true,
+      windowWidth: target.scrollWidth,
+      windowHeight: target.scrollHeight
+    });
+
+    const { jsPDF } = window.jspdf;
+    const imgW = canvas.width, imgH = canvas.height;
+    const orientation = imgW > imgH ? 'l' : 'p';
+    const pdf = new jsPDF({ orientation, unit: 'px', format: [imgW, imgH], compress: true });
+    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgW, imgH);
+    const dt = new Date();
+    const fn = `Dashboard_CEMIG_${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}.pdf`;
+    pdf.save(fn);
+  } catch(e){
+    console.error(e);
+    alert('Erro ao gerar PDF: ' + e.message);
+  } finally {
+    const s = document.getElementById('pdfLightTheme');
+    if (s) s.remove();
+    btn.innerHTML = original;
+    btn.disabled = false;
+  }
+}
+
+
 
 async function carregarDoServidor() {
   const loadMsg      = document.getElementById('loadMsg');
