@@ -50,6 +50,22 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .dash-grid{display:grid;grid-template-columns:repeat(12,1fr);gap:12px;}
 .c3{grid-column:span 3;}.c4{grid-column:span 4;}.c5{grid-column:span 5;}.c6{grid-column:span 6;}.c12{grid-column:span 12;}
 
+/* ── RESPONSIVO MOBILE/TABLET ── */
+@media (max-width: 1024px){
+  .dash-grid{grid-template-columns:repeat(6,1fr);gap:10px;}
+  .c3{grid-column:span 3;}.c4{grid-column:span 6;}.c5{grid-column:span 6;}.c6{grid-column:span 6;}.c12{grid-column:span 6;}
+}
+@media (max-width: 640px){
+  .canvas{padding:10px;}
+  .dash-grid{grid-template-columns:1fr;gap:10px;}
+  .c3,.c4,.c5,.c6,.c12{grid-column:span 1;}
+  .kpi-v{font-size:clamp(22px,7vw,34px)!important;word-break:break-word;}
+  .card-inner{padding:12px;}
+  .toolbar{flex-wrap:wrap;gap:8px;}
+  .tb-right{display:none;}
+  .tb-btn{font-size:10px;padding:6px 10px;}
+}
+
 /* ── CARD ── */
 .card{background:var(--surface);border:1px solid var(--border);border-radius:11px;overflow:hidden;transition:border-color .2s;position:relative;}
 .card:hover{border-color:rgba(0,212,255,.22);}
@@ -975,33 +991,16 @@ async function exportarPDF(){
   const original = btn.innerHTML;
   btn.innerHTML = '⏳ Gerando...';
   btn.disabled = true;
-
-  // Injeta um tema claro APENAS para o snapshot do PDF
-  const styleLight = document.createElement('style');
-  styleLight.id = 'pdfLightTheme';
-  styleLight.textContent = `
-    #dashWrapper, #dashWrapper * {
-      background-color: #ffffff !important;
-      background-image: none !important;
-      color: #1a1a1a !important;
-      border-color: #d0d7e2 !important;
-      box-shadow: none !important;
-      text-shadow: none !important;
-    }
-    #dashWrapper .tb-btn, #dashWrapper button { display: none !important; }
-    #dashWrapper canvas { background: #ffffff !important; }
-  `;
-
   try {
     document.querySelectorAll('.detail-panel').forEach(p => p.style.display = 'none');
-    document.head.appendChild(styleLight);
     const target = document.getElementById('dashWrapper');
-    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => setTimeout(r, 200));
 
     const canvas = await html2canvas(target, {
-      backgroundColor: '#ffffff',
-      scale: 2,
+      backgroundColor: '#0a0d14',
+      scale: 3,
       useCORS: true,
+      logging: false,
       windowWidth: target.scrollWidth,
       windowHeight: target.scrollHeight
     });
@@ -1010,7 +1009,8 @@ async function exportarPDF(){
     const imgW = canvas.width, imgH = canvas.height;
     const orientation = imgW > imgH ? 'l' : 'p';
     const pdf = new jsPDF({ orientation, unit: 'px', format: [imgW, imgH], compress: true });
-    pdf.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, imgW, imgH);
+    // PNG mantém o tema escuro nítido (sem o "embaçado" do JPEG em fundos escuros)
+    pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgW, imgH, undefined, 'FAST');
     const dt = new Date();
     const fn = `Dashboard_CEMIG_${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}.pdf`;
     pdf.save(fn);
@@ -1018,8 +1018,6 @@ async function exportarPDF(){
     console.error(e);
     alert('Erro ao gerar PDF: ' + e.message);
   } finally {
-    const s = document.getElementById('pdfLightTheme');
-    if (s) s.remove();
     btn.innerHTML = original;
     btn.disabled = false;
   }
