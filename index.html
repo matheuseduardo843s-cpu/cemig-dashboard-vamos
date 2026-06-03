@@ -245,7 +245,8 @@ const CO = {plugins:{legend:{labels:{color:'#6b7a99',font:{family:'DM Mono',size
 const EXCL_PAG    = new Set(['NÃO PAGO','NOVO FLUXO','NÃO PASSÍVEL DE MEDIÇÃO','NAO PAGO','NAO PASSIVEL DE MEDICAO']);
 const SKIP_DATE   = new Set(['FINALIZADO','N/A CAD.','N/A TOP.','N/A AVL.','CANCELADA',
   'AGUARD. ANÁLISE','AGUAR. CAMPO','AGUAR. ANÁLISE','CAMPO TOP.','DEMANDADO','PENDENTE',
-  'RETORNO FINALIZADO','N/A CAD','N/A TOP','N/A AVL','']);
+  'RETORNO FINALIZADO','N/A CAD','N/A TOP','N/A AVL','',
+  'ENTREGA PARCIAL','-','N/A','AGUAR. ANÁLISE DOCUMENTAL']);
 const SRV_DESC = {
   'C - A - T':'Cadastro + Avaliação + Topografia',
   'C - A':'Cadastro + Avaliação',
@@ -279,13 +280,17 @@ function fmtShort(v){
 }
 function isDateVal(v){
   if(v==null||v===''||v===undefined) return false;
+  // Número serial Excel (data): válido se > 1 (evita 0/negativos = erro)
+  if(typeof v === 'number') return v > 1;
   const s = String(v).trim().toUpperCase();
   if(SKIP_DATE.has(s)) return false;
-  if(typeof v === 'number') return true;
-  return /\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}/.test(String(v));
+  // String com padrão de data (inclui "2026-05-22 00:00:00" que o xlsx.js gera)
+  return /\d{1,4}[-\/]\d{1,2}[-\/]\d{2,4}/.test(s);
 }
 function isFim(v, tipos){
   if(v==null) return false;
+  // Número serial = é uma data, nunca é FINALIZADO/N/A
+  if(typeof v === 'number') return false;
   const s = String(v).trim().toUpperCase();
   return tipos.some(t => s === t.toUpperCase());
 }
@@ -351,7 +356,7 @@ function processRows(rows){
     r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
     r._am     = r['PREV. ANÁLISE DOCUMENTAL'];
     r._ap     = r['PREV. TOPOGRAFIA'];
-    r._av     = colVal(r, 'PREV. AVALIAÇÃO2', 'PREV. AVALIAÇÃO');
+    r._av     = colVal(r, 'PREV. AVALIAÇÃO', 'PREV. AVALIAÇÃO2');
     r._os     = String(r['OS'] || r['OS '] || '').trim();
     r._emp    = cleanStr(r['EMPREENDIMENTO']);
     r._campo  = r['STATUS CAD. CAMPO']==null ? 'N/A' : cleanStr(r['STATUS CAD. CAMPO']);
@@ -899,7 +904,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
       <div class="funil-kpi" style="--bc:#ff6b35;" onclick="toggleSetor('avl')">
         <div style="font-size:8px;color:#ff6b35;text-transform:uppercase;margin-bottom:3px;">⚖️ AVALIAÇÃO</div>
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:26px;color:#ff6b35;">${funil.avl.length}</div>
-        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD.+TOP. ok · PREV. AVALIAÇÃO2</div>
+        <div style="font-size:9px;color:var(--muted);margin-top:2px;">CAD.+TOP. ok · PREV. AVALIAÇÃO</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:7px 12px;background:rgba(34,212,122,.04);border:1px solid rgba(34,212,122,.15);border-radius:7px;cursor:pointer;" onclick="toggleSetor('concluida')">
@@ -927,7 +932,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
     base:     {label:'🏗️ CAMPO OK / N/A',      color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'AL = FINALIZADO ou vazio',                  oss:funil.base8},
     cad:      {label:'📋 CAD.',                color:'#00d4ff',bg:'rgba(0,212,255,.06)',  border:'rgba(0,212,255,.25)', filtro:'PREV. CAD. tem data',                        oss:funil.cad},
     top:      {label:'🗺️ TOPOGRAFIA',          color:'#7fff6b',bg:'rgba(127,255,107,.05)',border:'rgba(127,255,107,.22)',filtro:'CAD. ok · PREV. TOP. tem data',             oss:funil.top},
-    avl:      {label:'⚖️ AVALIAÇÃO',           color:'#ff6b35',bg:'rgba(255,107,53,.05)', border:'rgba(255,107,53,.22)', filtro:'CAD.+TOP. ok · PREV. AVALIAÇÃO2 tem data', oss:funil.avl},
+    avl:      {label:'⚖️ AVALIAÇÃO',           color:'#ff6b35',bg:'rgba(255,107,53,.05)', border:'rgba(255,107,53,.22)', filtro:'CAD.+TOP. ok · PREV. AVALIAÇÃO tem data',  oss:funil.avl},
     concluida:{label:'✅ CONCLUÍDA',           color:'#22d47a',bg:'rgba(34,212,122,.05)', border:'rgba(34,212,122,.2)',  filtro:'Todas etapas FINALIZADO',                   oss:funil.concluida},
     campoPend:{label:'⏳ AGUARDANDO CAMPO',    color:'#ffd166',bg:'rgba(255,209,102,.05)',border:'rgba(255,209,102,.25)',filtro:'AL = DEMANDADO ou PENDENTE',                 oss:funil.campoPend},
   };
