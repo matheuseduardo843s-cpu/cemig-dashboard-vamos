@@ -360,6 +360,7 @@ function processRows(rows){
     };
     r._status = safeStr(r['STATUS GERAL']).toUpperCase();
     r._pag    = safeStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
+    if (r._pag.startsWith('#')) r._pag = ''; // erros do Excel (#N/A) = sem situação
     r._serv   = cleanStr(r['SERVIÇOS']);
     r._resp   = cleanStr(r['RESPONSÁVEL CEMIG']);
     r._al     = cleanStr(r['STATUS CAD. CAMPO']).toUpperCase();
