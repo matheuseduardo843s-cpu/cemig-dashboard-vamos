@@ -97,3 +97,13 @@ cemig-dashboard/
 
 **Quer personalizar a URL** (ex: `meusite.vercel.app`)
 → No Vercel: Settings → Domains → edite o subdomínio gratuitamente
+
+---
+
+## Dois contratos (23-24 e 24-25)
+
+O dashboard tem duas abas no topo: **Contrato 23-24** e **Contrato 24-25**.
+Cada aba guarda sua própria planilha — subir uma não apaga a outra.
+
+Para enviar a planilha de um contrato: clique na aba do contrato → **Trocar arquivo** → selecione o `.xlsx`.
+O PDF exportado leva o contrato no nome (`Dashboard_CEMIG_23-24_AAAA-MM-DD.pdf`).

@@ -2,6 +2,8 @@
 import { kv } from '@vercel/kv';
 import * as XLSX from 'xlsx';
 
+const CONTRATOS = ['2324', '2425'];
+
 export const config = {
   api: {
     bodyParser: false,
@@ -24,6 +26,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    const contrato = String(req.query?.contrato || '2425');
+    if (!CONTRATOS.includes(contrato)) {
+      return res.status(400).json({ error: 'Contrato inválido' });
+    }
     const buffer   = await getRawBody(req);
     const filename = req.headers['x-filename'] || 'planilha.xlsx';
 
@@ -86,13 +92,14 @@ export default async function handler(req, res) {
 
     // Salva no KV com totalMedidoBB3
     const payload = {
+      contrato,
       filename,
       totalMedidoBB3,
       rows,
       updatedAt: new Date().toISOString(),
     };
 
-    await kv.set('cemig:dashboard', payload, { ex: 60 * 60 * 24 * 30 });
+    await kv.set(`cemig:dashboard:${contrato}`, payload, { ex: 60 * 60 * 24 * 30 });
 
     return res.status(200).json({ ok: true, rows: rows.length, totalMedidoBB3 });
 

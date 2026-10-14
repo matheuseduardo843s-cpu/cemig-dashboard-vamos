@@ -42,6 +42,7 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 .tb-logo{font-family:'Syne',sans-serif;font-weight:800;font-size:15px;} .tb-logo span{color:#00d4ff;}
 .tb-sep{width:1px;height:22px;background:var(--border);}
 .tb-btn{display:flex;align-items:center;gap:5px;padding:5px 13px;border-radius:6px;font-family:'DM Mono',monospace;font-size:11px;cursor:pointer;border:1px solid var(--border);background:var(--surface);color:var(--muted);transition:all .15s;white-space:nowrap;}
+.tb-btn.active{border-color:#00d4ff;color:#00d4ff;background:rgba(0,212,255,.15);font-weight:600;}
 .tb-btn:hover{border-color:#00d4ff;color:#00d4ff;background:rgba(0,212,255,.08);}
 .tb-right{margin-left:auto;font-size:10px;color:var(--muted);letter-spacing:1px;}
 
@@ -199,6 +200,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
 <div id="uploadScreen">
   <div class="up-logo">CONTROLE <span>CEMIG</span></div>
   <div class="up-sub">AVALICON ENGENHARIA — SELECIONE A PLANILHA PARA CARREGAR</div>
+  <div class="contrato-tabs" style="display:flex;gap:8px;">
+    <button class="tb-btn" data-contrato="2324" onclick="selecionarContrato('2324')">Contrato 23-24</button>
+    <button class="tb-btn" data-contrato="2425" onclick="selecionarContrato('2425')">Contrato 24-25</button>
+  </div>
+  <div class="up-sub" id="upDestino"></div>
   <div class="drop-zone" id="dropZone">
     <div class="drop-icon">📂</div>
     <div class="drop-title">Arraste a planilha aqui</div>
@@ -217,6 +223,11 @@ body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(
     <div class="tb-logo">CONTROLE <span>CEMIG</span></div>
     <div class="tb-sep"></div>
     <span style="font-size:10px;color:var(--muted)">AVALICON ENGENHARIA</span>
+    <div class="tb-sep"></div>
+    <div class="contrato-tabs" style="display:flex;gap:6px;">
+      <button class="tb-btn" data-contrato="2324" onclick="selecionarContrato('2324')">Contrato 23-24</button>
+      <button class="tb-btn" data-contrato="2425" onclick="selecionarContrato('2425')">Contrato 24-25</button>
+    </div>
     <div class="tb-sep"></div>
     <button class="tb-btn" onclick="trocarArquivo()">📂 Trocar arquivo</button>
     <button class="tb-btn" onclick="exportarPDF()" id="btnPDF">📄 Exportar PDF</button>
@@ -981,7 +992,44 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
 // ══════════════════════════════════════════════════
 //  UPLOAD / DROP
 // ══════════════════════════════════════════════════
+const CONTRATOS = {'2324':'Contrato 23-24','2425':'Contrato 24-25'};
+let contratoAtual = '2425';
+try { const c = localStorage.getItem('cemigContrato'); if (CONTRATOS[c]) contratoAtual = c; } catch(e) {}
+const cacheContrato = {};
+
+function marcarAbas() {
+  document.querySelectorAll('[data-contrato]').forEach(b =>
+    b.classList.toggle('active', b.dataset.contrato === contratoAtual));
+  const d = document.getElementById('upDestino');
+  if (d) d.textContent = 'Enviando para: ' + CONTRATOS[contratoAtual];
+}
+
+function mostrarDashboard(data) {
+  document.getElementById('uploadScreen').style.display = 'none';
+  document.getElementById('dashWrapper').style.display = 'block';
+  buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBB3);
+  const el = document.getElementById('tbRight');
+  let txt = CONTRATOS[contratoAtual] + ' · ' + el.textContent;
+  if (data.updatedAt) {
+    const d = new Date(data.updatedAt);
+    txt = CONTRATOS[contratoAtual] + ' · Atualizado: ' + d.toLocaleDateString('pt-BR') + ' ' +
+      d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
+  el.textContent = txt;
+}
+
+function selecionarContrato(id) {
+  if (!CONTRATOS[id]) return;
+  contratoAtual = id;
+  try { localStorage.setItem('cemigContrato', id); } catch(e) {}
+  marcarAbas();
+  if (cacheContrato[id]) { mostrarDashboard(cacheContrato[id]); return; }
+  trocarArquivo();
+  carregarDoServidor();
+}
+
 function trocarArquivo() {
+  marcarAbas();
   document.getElementById('dashWrapper').style.display = 'none';
   document.getElementById('uploadScreen').style.display = 'flex';
   document.getElementById('loadMsg').style.display = 'none';
@@ -1018,7 +1066,7 @@ async function exportarPDF(){
     const pdf = new jsPDF({ orientation, unit: 'px', format: [imgW, imgH], compress: true });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, imgW, imgH, undefined, 'FAST');
     const dt = new Date();
-    const fn = `Dashboard_CEMIG_${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}.pdf`;
+    const fn = `Dashboard_CEMIG_${contratoAtual.slice(0,2)}-${contratoAtual.slice(2)}_${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}-${String(dt.getDate()).padStart(2,'0')}.pdf`;
     pdf.save(fn);
   } catch(e){
     console.error(e);
@@ -1044,24 +1092,23 @@ async function carregarDoServidor() {
   progFill.style.width = '30%';
 
   try {
-    const res = await fetch('/api/carregar');
-    if (res.status === 404) { loadMsg.style.display='none'; progBar.style.display='none'; return; }
+    const contrato = contratoAtual;
+    const res = await fetch('/api/carregar?contrato=' + contrato);
+    if (contrato !== contratoAtual) return; // usuário trocou de aba durante a requisição
+    if (res.status === 404) {
+      loadMsg.style.display='none'; progBar.style.display='none';
+      document.getElementById('dashWrapper').style.display = 'none';
+      uploadScreen.style.display = 'flex';
+      return;
+    }
     if (!res.ok) throw new Error('Erro ao carregar dados');
 
     progFill.style.width = '80%';
     const data = await res.json();
     progFill.style.width = '100%';
 
-    setTimeout(() => {
-      uploadScreen.style.display = 'none';
-      document.getElementById('dashWrapper').style.display = 'block';
-      buildDashboard(data.rows, data.filename || 'planilha.xlsx', data.totalMedidoBB3);
-      if (data.updatedAt) {
-        const d = new Date(data.updatedAt);
-        const fmt = d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
-        document.getElementById('tbRight').textContent = 'Atualizado: ' + fmt;
-      }
-    }, 200);
+    cacheContrato[contrato] = data;
+    setTimeout(() => { if (contrato === contratoAtual) mostrarDashboard(data); }, 200);
 
   } catch(err) {
     loadMsg.style.display = 'none';
@@ -1143,18 +1190,16 @@ function processFile(file) {
 
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
       try {
-        await fetch('/api/salvar', {
+        await fetch('/api/salvar?contrato=' + contratoAtual, {
           method: 'POST',
           headers: { 'Content-Type': 'application/octet-stream', 'x-filename': file.name },
           body: new Uint8Array(buffer)
         });
       } catch(e) { console.warn('Não salvou no servidor:', e); }
 
-      setTimeout(() => {
-        document.getElementById('uploadScreen').style.display = 'none';
-        document.getElementById('dashWrapper').style.display = 'block';
-        buildDashboard(rows, file.name, totalMedidoBB3);
-      }, 300);
+      const data = {rows, filename: file.name, totalMedidoBB3, updatedAt: new Date().toISOString()};
+      cacheContrato[contratoAtual] = data;
+      setTimeout(() => mostrarDashboard(data), 300);
 
     } catch(err) {
       loadError.style.display = 'block';
@@ -1167,6 +1212,7 @@ function processFile(file) {
 }
 
 window.addEventListener('DOMContentLoaded', () => {
+  marcarAbas();
   carregarDoServidor();
 
   const fileInput = document.getElementById('fileInput');
