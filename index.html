@@ -394,7 +394,7 @@ function processRows(rows){
     };
     r._status = safeStr(r['STATUS GERAL']).toUpperCase();
     r._cancel = r._status === 'CANCELADA';
-    r._valorOk = r._cancel ? 0 : r._valor; // valor que conta nos totais (exclui canceladas)
+    r._valorOk = r._valor; // valor que conta nos totais (igual ao filtro da planilha)
     r._pag    = safeStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     if (r._pag.startsWith('#')) r._pag = ''; // erros do Excel (#N/A) = sem situação
     r._serv   = cleanStr(r['SERVIÇOS']);
@@ -417,10 +417,10 @@ function calcKpis(rows, totalMedidoBB3){
     if(s) statusCounts[s] = (statusCounts[s]||0)+1;
   });
 
-  const pagRows  = rows.filter(r => !r._cancel && r._pag === 'PAGO 100%');
+  const pagRows  = rows.filter(r => r._pag === 'PAGO 100%');
   const pago100  = pagRows.reduce((s,r)=>s+r._valor,0);
 
-  const faltaRows  = rows.filter(r => !r._cancel && r._pag === 'FALTA 60%');
+  const faltaRows  = rows.filter(r => r._pag === 'FALTA 60%');
   const faltaBruto = faltaRows.reduce((s,r)=>s+r._valor,0);
   const faltaVal   = faltaBruto * 0.6;
 
@@ -430,7 +430,7 @@ function calcKpis(rows, totalMedidoBB3){
   );
   const naPago = npRows.reduce((s,r)=>s+r._valor,0);
 
-  const multaRows = rows.filter(r=>!r._cancel && r._pag.includes('MULTA'));
+  const multaRows = rows.filter(r=>r._pag.includes('MULTA'));
   const multaVal = multaRows.reduce((s,r)=>s+r._valor,0);
 
   return {
