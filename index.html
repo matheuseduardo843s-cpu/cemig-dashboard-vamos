@@ -267,6 +267,13 @@ const SRV_DESC = {
   'T':'Topografia',
   'A - T':'Avaliação + Topografia'
 };
+// Status que existem na planilha/código mas não aparecem na tela (mascarados)
+const STATUS_OCULTOS = new Set(['EM REVISÃO','REVISADA']);
+// Cores fixas por status de campo (mesma cor sempre para o mesmo status)
+const CAMPO_COR = {
+  'FINALIZADO':C.green,'N/A':C.muted,'RETORNO FINALIZADO':C.teal,
+  'DEMANDADO':C.blue,'PENDENTE':C.yellow,'CANCELADA':C.red,'—':'#3a4560'
+};
 const SRV_COR = {
   'C - A - T':C.blue,'C - A':C.teal,'C':C.yellow,
   'A':C.orange,'C - T':C.purple,'T':C.muted,'A - T':C.red
@@ -277,6 +284,33 @@ function colVal(row, ...keys) {
     if (row[k] !== undefined && row[k] !== null) return row[k];
   }
   return null;
+}
+
+// Converte célula (serial Excel, Date, 'dd/mm/aaaa' ou ISO) em Date LOCAL ao meio-dia,
+// evitando o deslocamento de fuso (serial = UTC meia-noite → dia anterior no Brasil).
+function toLocalDate(v){
+  if(v==null||v==='') return null;
+  let y,m,d;
+  if(typeof v==='number'){
+    if(v<=1) return null;
+    const u=new Date(Math.round((v-25569)*86400*1000));
+    y=u.getUTCFullYear();m=u.getUTCMonth();d=u.getUTCDate();
+  }else if(v instanceof Date){
+    if(isNaN(v.getTime())) return null;
+    y=v.getFullYear();m=v.getMonth();d=v.getDate();
+  }else{
+    const s=String(v).trim();
+    let mt=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})$/);
+    if(mt){d=+mt[1];m=+mt[2]-1;y=+mt[3];}
+    else if((mt=s.match(/^(\d{4})-(\d{2})-(\d{2})/))){y=+mt[1];m=+mt[2]-1;d=+mt[3];}
+    else return null;
+  }
+  const dt=new Date(y,m,d,12,0,0,0);
+  return isNaN(dt.getTime())?null:dt;
+}
+// Normaliza nome de responsável: sem acento/caixa, duas primeiras palavras (Ana Elisa Toledo → Ana Elisa)
+function respKey(n){
+  return String(n).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().split(/\s+/).slice(0,2).join(' ');
 }
 
 function fmtBRL(v){
@@ -359,6 +393,8 @@ function processRows(rows){
       return s.startsWith('=') ? '' : s;
     };
     r._status = safeStr(r['STATUS GERAL']).toUpperCase();
+    r._cancel = r._status === 'CANCELADA';
+    r._valorOk = r._cancel ? 0 : r._valor; // valor que conta nos totais (exclui canceladas)
     r._pag    = safeStr(r['SITUAÇÃO PAGAMENTO']).toUpperCase();
     if (r._pag.startsWith('#')) r._pag = ''; // erros do Excel (#N/A) = sem situação
     r._serv   = cleanStr(r['SERVIÇOS']);
@@ -381,10 +417,10 @@ function calcKpis(rows, totalMedidoBB3){
     if(s) statusCounts[s] = (statusCounts[s]||0)+1;
   });
 
-  const pagRows  = rows.filter(r => r._pag === 'PAGO 100%');
+  const pagRows  = rows.filter(r => !r._cancel && r._pag === 'PAGO 100%');
   const pago100  = pagRows.reduce((s,r)=>s+r._valor,0);
 
-  const faltaRows  = rows.filter(r => r._pag === 'FALTA 60%');
+  const faltaRows  = rows.filter(r => !r._cancel && r._pag === 'FALTA 60%');
   const faltaBruto = faltaRows.reduce((s,r)=>s+r._valor,0);
   const faltaVal   = faltaBruto * 0.6;
 
@@ -394,7 +430,8 @@ function calcKpis(rows, totalMedidoBB3){
   );
   const naPago = npRows.reduce((s,r)=>s+r._valor,0);
 
-  const multaVal = rows.filter(r=>r._pag.includes('MULTA')).reduce((s,r)=>s+r._valor,0);
+  const multaRows = rows.filter(r=>!r._cancel && r._pag.includes('MULTA'));
+  const multaVal = multaRows.reduce((s,r)=>s+r._valor,0);
 
   return {
     statusCounts,
@@ -402,7 +439,7 @@ function calcKpis(rows, totalMedidoBB3){
     pago100, pagCount: pagRows.length,
     faltaVal, faltaBruto, faltaCount: faltaRows.length,
     naPago, npCount: npRows.length,
-    multaVal
+    multaVal, multaCount: multaRows.length
   };
 }
 
@@ -432,20 +469,26 @@ function calcMensal(rows){
 function calcServicos(rows){
   const counts={};
   rows.forEach(r=>{if(r._serv)counts[r._serv]=(counts[r._serv]||0)+1;});
-  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,7);
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   return {labels:sorted.map(x=>x[0]),values:sorted.map(x=>x[1])};
 }
 
 function calcResponsaveis(rows){
-  const c={},v={};
+  const c={},v={},nomes={};
+  let semResp=0;
   rows.forEach(r=>{
-    if(!r._resp) return;
-    c[r._resp]=(c[r._resp]||0)+1;
-    v[r._resp]=(v[r._resp]||0)+r._valor;
+    const nome=r._resp;
+    if(!nome || nome==='-' || nome==='0'){ semResp++; return; }
+    const k=respKey(nome);
+    (nomes[k]=nomes[k]||{})[nome]=(nomes[k][nome]||0)+1;
+    c[k]=(c[k]||0)+1;
+    v[k]=(v[k]||0)+r._valorOk;
   });
-  const sortC=Object.entries(c).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  const sortV=Object.entries(v).sort((a,b)=>b[1]-a[1]).slice(0,8);
-  return {byCount:sortC,byValor:sortV};
+  // nome exibido = grafia mais frequente do grupo
+  const nome=k=>Object.entries(nomes[k]).sort((a,b)=>b[1]-a[1])[0][0];
+  const sortC=Object.entries(c).sort((a,b)=>b[1]-a[1]).map(([k,n])=>[nome(k),n]);
+  const sortV=Object.entries(v).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([k,x])=>[nome(k),x]);
+  return {byCount:sortC,byValor:sortV,semResp,total:rows.length};
 }
 
 function calcCampo(rows){
@@ -454,31 +497,31 @@ function calcCampo(rows){
     const v=r._campo||'—';
     counts[v]=(counts[v]||0)+1;
   });
-  return Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
+  return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
 }
 
 function calcSemanal(rows){
-  const col='DATA DE ENTREGA';
-  const semanas=[];
-  const hoje=new Date();
-  const dom=new Date(hoje); dom.setDate(dom.getDate()-dom.getDay());
-  for(let i=0;i<6;i++){
-    const fim=new Date(dom); fim.setDate(dom.getDate()-i*7);
-    const ini=new Date(fim); ini.setDate(fim.getDate()-6);
-    const sub=rows.filter(r=>{
-      let v=r[col]; if(v==null) return false;
-      let d; if(typeof v==='number'){d=new Date(Math.round((v-25569)*86400*1000));}else{d=new Date(v);}
-      if(isNaN(d.getTime())) return false;
-      return d>=ini&&d<=fim;
-    });
-    if(sub.length>0){
-      const props=sub.reduce((s,r)=>s+(parseFloat(r['Nº PROP.'])||0),0);
-      const val=sub.reduce((s,r)=>s+r._valor,0);
-      const fmt=d=>`${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
-      semanas.push({ini:fmt(ini),fim:fmt(fim),os:sub.length,prop:Math.round(props),val:Math.round(val*100)/100});
-    }
+  // Coluna real da planilha: 'DATA DA ENTREGA' (aceita também 'DATA DE ENTREGA')
+  const COL = rows.some(r => r['DATA DA ENTREGA'] != null) ? 'DATA DA ENTREGA' : 'DATA DE ENTREGA';
+  const WEEKS = 5;
+  let ref = null;
+  rows.forEach(r => { const d = toLocalDate(r[COL]); if (d && (!ref || d > ref)) ref = d; });
+  if (!ref) return [];
+  const base = new Date(ref);
+  const dow = base.getDay();
+  base.setDate(base.getDate() + ((dow === 0) ? -6 : 1 - dow));   // segunda da última semana com entrega
+  base.setHours(0,0,0,0);
+  const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+  const semanas = [];
+  for (let i = 0; i < WEEKS; i++) {            // da mais recente para a mais antiga
+    const ini = new Date(base); ini.setDate(base.getDate() - i*7);
+    const fim = new Date(ini);  fim.setDate(ini.getDate() + 6); fim.setHours(23,59,59,999);
+    const sub = rows.filter(r => { const d = toLocalDate(r[COL]); return d && d >= ini && d <= fim; });
+    const props = sub.reduce((s,r)=>s+(parseFloat(r['Nº PROP.'])||0),0);
+    const val   = sub.reduce((s,r)=>s+r._valorOk,0);
+    semanas.push({ini:fmt(ini),fim:fmt(fim),os:sub.length,prop:Math.round(props),val:Math.round(val*100)/100});
   }
-  return semanas.slice(0,5);
+  return semanas;
 }
 
 // ── RECEBIMENTO SEMANAL POR DATA DE SOLICITAÇÃO ──
@@ -488,13 +531,7 @@ function calcRecebimentoSemanal(rows) {
   const WEEKS = 5;
 
   // Converte valor de célula para Date (suporta serial Excel e string)
-  const toDate = v => {
-    if (v == null) return null;
-    let d = (typeof v === 'number')
-      ? new Date(Math.round((v - 25569) * 86400 * 1000))
-      : new Date(v);
-    return isNaN(d.getTime()) ? null : d;
-  };
+  const toDate = toLocalDate;
 
   // Usa a ÚLTIMA data encontrada nos dados como referência (evita gráfico zerado com dados históricos)
   let refDate = null;
@@ -506,7 +543,6 @@ function calcRecebimentoSemanal(rows) {
 
   // Segunda-feira da semana da última data
   const base = new Date(refDate);
-  base.setHours(12,0,0,0);
   const dow = base.getDay();
   base.setDate(base.getDate() + ((dow === 0) ? -6 : 1 - dow));
   base.setHours(0,0,0,0);
@@ -536,7 +572,7 @@ function calcRecebimentoSemanal(rows) {
       iniShort: fmtShortD(mon),
       fimShort: fmtShortD(sun),
       os: sub.length,
-      val: sub.reduce((s, r) => s + r._valor, 0),
+      val: sub.reduce((s, r) => s + r._valorOk, 0),
       isCurr: i === 0
     });
   }
@@ -627,6 +663,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   let statusAtivo=null;
   const sc=kpis.statusCounts;
   function pillHtml(key,label,cor,cls,clicavel=false){
+    if(STATUS_OCULTOS.has(key)) return '';
     const n=sc[key]||0;
     const arrow=clicavel?`<span style="font-size:9px;color:${cor}88">▾</span>`:'';
     const click=clicavel?`style="cursor:pointer" onclick="toggleStatus('${key}',this)"`:'';
@@ -683,7 +720,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   `);
   charts.push(new Chart(document.getElementById('chartPag'),{
     type:'doughnut',
-    data:{labels:['Pago 100%','Falta 60%','Multa','Não Pago'],datasets:[{data:[kpis.pagCount,kpis.faltaCount,4,kpis.npCount],backgroundColor:['#22d47a22','#ffd16622','#ff6b3522','#ff475722'],borderColor:['#22d47a','#ffd166','#ff6b35','#ff4757'],borderWidth:2,hoverOffset:5}]},
+    data:{labels:['Pago 100%','Falta 60%','Multa','Não Pago'],datasets:[{data:[kpis.pagCount,kpis.faltaCount,kpis.multaCount,kpis.npCount],backgroundColor:['#22d47a22','#ffd16622','#ff6b3522','#ff475722'],borderColor:['#22d47a','#ffd166','#ff6b35','#ff4757'],borderWidth:2,hoverOffset:5}]},
     options:{...CO,cutout:'62%',plugins:{...CO.plugins,legend:{position:'right',labels:{...CO.plugins.legend.labels}}}}
   }));
 
@@ -717,8 +754,8 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   card('c3',240,`<div class="card-title">Distribuição por Serviço</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartServ"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartServ'),{
     type:'polarArea',
-    data:{labels:servs.labels,datasets:[{data:servs.values,backgroundColor:PALETTE.map(c=>c+'22'),borderColor:PALETTE,borderWidth:2}]},
-    options:{...CO,scales:{r:{ticks:{display:false},grid:{color:'#1e2840'},pointLabels:{color:'#6b7a99',font:{family:'DM Mono',size:9}}}},plugins:{...CO.plugins,legend:{display:false}}}
+    data:{labels:servs.labels.map((l,i)=>`${l} (${servs.values[i]})`),datasets:[{data:servs.values,backgroundColor:servs.labels.map(l=>(SRV_COR[l]||C.muted)+'33'),borderColor:servs.labels.map(l=>SRV_COR[l]||C.muted),borderWidth:2}]},
+    options:{...CO,scales:{r:{ticks:{display:false},grid:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{position:'right',labels:{...CO.plugins.legend.labels}}}}
   }));
 
   // ── ROW 3b: ENTREGAS SEMANAIS ──
@@ -760,7 +797,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   card('c4',240,`<div class="card-title">Status Campo</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartCampo"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartCampo'),{
     type:'doughnut',
-    data:{labels:campo.map(x=>x[0]),datasets:[{data:campo.map(x=>x[1]),backgroundColor:PALETTE.map(c=>c+'22'),borderColor:PALETTE,borderWidth:2,hoverOffset:5}]},
+    data:{labels:campo.map(x=>`${x[0]} (${x[1]})`),datasets:[{data:campo.map(x=>x[1]),backgroundColor:campo.map(x=>(CAMPO_COR[x[0]]||C.purple)+'33'),borderColor:campo.map(x=>CAMPO_COR[x[0]]||C.purple),borderWidth:2,hoverOffset:5}]},
     options:{...CO,cutout:'56%',plugins:{...CO.plugins,legend:{position:'bottom',labels:{...CO.plugins.legend.labels}}}}
   }));
 
@@ -857,9 +894,15 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   recebBody.appendChild(recebTotalTr);
 
   // ── ROW 5a: RESPONSÁVEIS BARRAS ──
-  card('c3',240,`<div class="card-title">OSs por Responsável CEMIG</div><div class="bar-list" id="barResp"></div>`);
-  const maxRc=resps.byCount.length?resps.byCount[0][1]:1;
-  resps.byCount.forEach(([n,c],i)=>{
+  card('c3',240,`<div class="card-title">OSs por Responsável CEMIG <span style="margin-left:auto;font-size:9px;font-weight:400;color:var(--muted);text-transform:none;letter-spacing:0;">total ${resps.total} OSs</span></div><div class="bar-list" id="barResp"></div>`);
+  // Top 8 + "Demais" + "Sem responsável" → a soma das barras fecha com o total de OSs
+  const TOPN=8;
+  const respBars=resps.byCount.slice(0,TOPN);
+  const demais=resps.byCount.slice(TOPN);
+  if(demais.length) respBars.push([`Demais (${demais.length} resp.)`,demais.reduce((a,x)=>a+x[1],0)]);
+  if(resps.semResp) respBars.push(['Sem responsável',resps.semResp]);
+  const maxRc=Math.max(1,...respBars.map(x=>x[1]));
+  respBars.forEach(([n,c],i)=>{
     const div=document.createElement('div');div.className='bar-item';
     div.innerHTML=`<div class="bar-row"><span>${n}</span><span style="color:var(--muted)">${c}</span></div><div class="bar-track"><div class="bar-fill" style="width:${(c/maxRc*100).toFixed(1)}%;background:${PALETTE[i%8]}"></div></div>`;
     div.addEventListener('mouseenter',e=>showTip(e,n,`${c} OSs`,'—',''));
@@ -871,7 +914,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   card('c4',240,`<div class="card-title">Valor Medido por Responsável</div><div style="flex:1;position:relative;min-height:0;"><canvas id="chartValor"></canvas></div>`);
   charts.push(new Chart(document.getElementById('chartValor'),{
     type:'bar',
-    data:{labels:resps.byValor.map(x=>x[0].split(' ')[0]),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
+    data:{labels:resps.byValor.map(x=>x[0].split(' ').slice(0,2).join(' ')),datasets:[{data:resps.byValor.map(x=>Math.round(x[1])),backgroundColor:PALETTE.map(c=>c+'33'),borderColor:PALETTE,borderWidth:2,borderRadius:5}]},
     options:{...CO,indexAxis:'y',scales:{x:{ticks:{color:'#6b7a99',font:{family:'DM Mono',size:9},callback:v=>'R$'+(v/1000).toFixed(0)+'K'},grid:{color:'#1e2840'},border:{color:'#1e2840'}},y:{ticks:{color:'#e8edf5',font:{family:'DM Mono',size:9}},grid:{display:false},border:{color:'#1e2840'}}},plugins:{...CO.plugins,legend:{display:false}}}
   }));
 
@@ -879,7 +922,7 @@ function buildDashboard(rawRows, filename, totalMedidoBB3){
   card('c5',240,`<div class="card-title">Legenda de Serviços</div><div class="srv-grid" id="srvGrid"></div>`);
   servs.labels.forEach((lbl,i)=>{
     const d=document.createElement('div');d.className='srv-card';
-    d.innerHTML=`<div class="srv-code" style="color:${PALETTE[i%8]}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
+    d.innerHTML=`<div class="srv-code" style="color:${SRV_COR[lbl]||C.muted}">${lbl}</div><div class="srv-desc">${SRV_DESC[lbl]||lbl}</div><div class="srv-n">${servs.values[i]} OSs</div>`;
     document.getElementById('srvGrid').appendChild(d);
   });
 
