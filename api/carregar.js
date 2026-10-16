@@ -1,5 +1,5 @@
 // api/carregar.js
-import { kv } from '@vercel/kv';
+import { getKv, explicaErro } from './_kv.js';
 
 const CONTRATOS = ['2324', '2425'];
 
@@ -14,9 +14,9 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Contrato inválido' });
     }
 
-    let data = await kv.get(`cemig:dashboard:${contrato}`);
+    let data = await getKv().get(`cemig:dashboard:${contrato}`);
     // Compatibilidade: dados antigos (chave única) pertencem ao contrato novo
-    if (!data && contrato === '2425') data = await kv.get('cemig:dashboard');
+    if (!data && contrato === '2425') data = await getKv().get('cemig:dashboard');
 
     if (!data) {
       return res.status(404).json({ error: 'Nenhum dado salvo' });
@@ -27,6 +27,6 @@ export default async function handler(req, res) {
 
   } catch (err) {
     console.error('[carregar]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: explicaErro(err) });
   }
 }

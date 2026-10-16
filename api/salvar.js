@@ -1,5 +1,5 @@
 // api/salvar.js
-import { kv } from '@vercel/kv';
+import { getKv, explicaErro } from './_kv.js';
 
 const CONTRATOS = ['2324', '2425'];
 
@@ -41,12 +41,12 @@ export default async function handler(req, res) {
     };
 
     // Sem expiração: o relatório fica salvo até a próxima planilha ser enviada
-    await kv.set(`cemig:dashboard:${contrato}`, payload);
+    await getKv().set(`cemig:dashboard:${contrato}`, payload);
 
     return res.status(200).json({ ok: true, rows: rows.length, totalMedidoBB3: payload.totalMedidoBB3 });
 
   } catch (err) {
     console.error('[salvar]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: explicaErro(err) });
   }
 }
