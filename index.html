@@ -1145,7 +1145,11 @@ async function carregarDoServidor() {
       uploadScreen.style.display = 'flex';
       return;
     }
-    if (!res.ok) throw new Error('Erro ao carregar dados');
+    if (!res.ok) {
+      let msg = 'HTTP ' + res.status;
+      try { msg = (await res.json()).error || msg; } catch(e) {}
+      throw new Error(msg);
+    }
 
     progFill.style.width = '80%';
     const data = await res.json();
@@ -1158,7 +1162,23 @@ async function carregarDoServidor() {
     loadMsg.style.display = 'none';
     progBar.style.display = 'none';
     console.warn('Sem dados no servidor:', err.message);
+    const le = document.getElementById('loadError');
+    le.style.display = 'block';
+    le.textContent = '⚠️ Não foi possível carregar os dados salvos: ' + err.message;
   }
+}
+
+// Colunas usadas pelo dashboard: só elas vão para o servidor (payload pequeno).
+const COLS_USADAS = ['OS','OS ','DESCRIÇÃO','EMPREENDIMENTO','SERVIÇOS','RESPONSÁVEL CEMIG','STATUS GERAL',
+  'VALOR DE MEDIÇÃO','Nº PROP.','SITUAÇÃO PAGAMENTO','STATUS CAD. CAMPO','PREV. ANÁLISE DOCUMENTAL',
+  'PREV. TOPOGRAFIA','PREV. AVALIAÇÃO','PREV. AVALIAÇÃO2','DATA DA SOLICITAÇÃO','DATA DE SOLICITAÇÃO',
+  'DATA DO PEDIDO DE REPACTUAÇÃO','DATA DA ENTREGA','DATA DE ENTREGA'];
+function compactarRows(rows){
+  return rows.map(r=>{
+    const o={};
+    COLS_USADAS.forEach(k=>{ if(r[k]!==undefined && r[k]!==null && r[k]!=='') o[k]=r[k]; });
+    return o;
+  });
 }
 
 function processFile(file) {
@@ -1233,13 +1253,20 @@ function processFile(file) {
       progFill.style.width = '100%';
 
       loadMsg.textContent = '⚙️ Salvando para todos os usuários...';
+      let erroSalvar = null;
       try {
-        await fetch('/api/salvar?contrato=' + contratoAtual, {
+        const resp = await fetch('/api/salvar?contrato=' + contratoAtual, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/octet-stream', 'x-filename': file.name },
-          body: new Uint8Array(buffer)
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ filename: file.name, totalMedidoBB3, rows: compactarRows(rows) })
         });
-      } catch(e) { console.warn('Não salvou no servidor:', e); }
+        if (!resp.ok) {
+          let msg = 'HTTP ' + resp.status;
+          try { msg = (await resp.json()).error || msg; } catch(e) {}
+          erroSalvar = msg;
+        }
+      } catch(e) { erroSalvar = e.message; console.warn('Não salvou no servidor:', e); }
+      if (erroSalvar) alert('⚠️ O dashboard abriu, mas NÃO foi salvo para os outros usuários.\n\nMotivo: ' + erroSalvar);
 
       const data = {rows, filename: file.name, totalMedidoBB3, updatedAt: new Date().toISOString()};
       cacheContrato[contratoAtual] = data;
