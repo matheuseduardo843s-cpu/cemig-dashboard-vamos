@@ -270,6 +270,7 @@ const SRV_DESC = {
 // Status que existem na planilha/código mas não aparecem na tela (mascarados)
 const STATUS_OCULTOS = new Set(['EM REVISÃO','REVISADA']);
 // Cores fixas por status de campo (mesma cor sempre para o mesmo status)
+const CAMPO_IGNORAR = new Set(['CANCELADA','-','—','–']);
 const CAMPO_COR = {
   'FINALIZADO':C.green,'N/A':C.muted,'RETORNO FINALIZADO':C.teal,
   'DEMANDADO':C.blue,'PENDENTE':C.yellow,'CANCELADA':C.red,'—':'#3a4560'
@@ -468,7 +469,7 @@ function calcMensal(rows){
 
 function calcServicos(rows){
   const counts={};
-  rows.forEach(r=>{if(r._serv)counts[r._serv]=(counts[r._serv]||0)+1;});
+  rows.forEach(r=>{if(r._serv && r._serv!=='-')counts[r._serv]=(counts[r._serv]||0)+1;});
   const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
   return {labels:sorted.map(x=>x[0]),values:sorted.map(x=>x[1])};
 }
@@ -495,6 +496,7 @@ function calcCampo(rows){
   const counts={};
   rows.forEach(r=>{
     const v=r._campo||'—';
+    if(CAMPO_IGNORAR.has(v.toUpperCase())) return;   // Cancelada e traços não entram no gráfico
     counts[v]=(counts[v]||0)+1;
   });
   return Object.entries(counts).sort((a,b)=>b[1]-a[1]);
