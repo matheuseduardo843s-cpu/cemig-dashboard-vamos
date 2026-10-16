@@ -445,16 +445,13 @@ function calcKpis(rows, totalMedidoBB3){
 }
 
 function calcMensal(rows){
-  const col = rows[0]?.['DATA DA SOLICITAÇÃO']!==undefined ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
+  // Coluna escolhida olhando TODAS as linhas (a 1ª OS pode não ter data); aceita datas em texto dd/mm/aaaa
+  const col = rows.some(r=>r['DATA DA SOLICITAÇÃO']!=null && r['DATA DA SOLICITAÇÃO']!=='') ? 'DATA DA SOLICITAÇÃO' : 'DATA DO PEDIDO DE REPACTUAÇÃO';
   const counts = {};
   rows.forEach(r=>{
-    let v = r[col];
-    if(v==null) return;
-    let d;
-    if(typeof v==='number'){d=new Date(Math.round((v-25569)*86400*1000));}
-    else{d=new Date(v);}
-    if(isNaN(d.getTime())) return;
-    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}`;
+    const d = toLocalDate(r[col]);
+    if(!d) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
     counts[key]=(counts[key]||0)+1;
   });
   const keys = Object.keys(counts).sort().slice(-10);
