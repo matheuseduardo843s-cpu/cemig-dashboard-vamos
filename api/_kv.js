@@ -1,9 +1,19 @@
 // api/_kv.js — cliente do banco (Vercel KV / Upstash Redis) com mensagens de erro claras
 import { createClient } from '@vercel/kv';
 
+// Procura a variável pelo nome exato ou por qualquer nome que TERMINE com o sufixo
+// (o Vercel pode colocar um prefixo antes, ex.: STORAGE_KV_REST_API_URL).
+function achaEnv(nomes, sufixo) {
+  for (const n of nomes) if (process.env[n]) return process.env[n];
+  const k = Object.keys(process.env).find(k => k.endsWith(sufixo) && process.env[k]);
+  return k ? process.env[k] : undefined;
+}
+
 export function getKv() {
-  const url   = process.env.KV_REST_API_URL   || process.env.UPSTASH_REDIS_REST_URL;
-  const token = process.env.KV_REST_API_TOKEN || process.env.UPSTASH_REDIS_REST_TOKEN;
+  const url   = achaEnv(['KV_REST_API_URL', 'UPSTASH_REDIS_REST_URL'], 'KV_REST_API_URL')
+             || achaEnv([], 'UPSTASH_REDIS_REST_URL');
+  const token = achaEnv(['KV_REST_API_TOKEN', 'UPSTASH_REDIS_REST_TOKEN'], 'KV_REST_API_TOKEN')
+             || achaEnv([], 'UPSTASH_REDIS_REST_TOKEN');
   if (!url || !token) {
     throw new Error('Banco de dados não configurado: conecte um Upstash Redis (ou Vercel KV) ao projeto em Storage no painel do Vercel e faça um novo deploy.');
   }
